@@ -1,0 +1,13 @@
+{
+  "maintenance": {"pm_wear_threshold": {"M1": 0.70, "M2": 0.65}, "max_pm_per_shift": 1},
+  "dispatch": {
+    "rule": "CRITICAL_RATIO",
+    "weights": {"due_date": 0.6, "wear_risk": 0.3, "setup": 0.1}
+  },
+  "rules": [
+    {"if": {"machine": "M2", "wear_gt": 0.80, "urgent_order_waiting": true},
+     "then": {"action": "POSTPONE_PM", "max_minutes": 45}},
+    {"if": {"queue_len_gt": 6},
+     "then": {"action": "BATCH_SAME_PRODUCT"}}
+  ]
+}

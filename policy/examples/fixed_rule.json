@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "maintenance": {
+    "pm_wear_threshold": {"M1": 0.75, "M2": 0.75, "M3": 0.75, "M4": 0.75, "M5": 0.75},
+    "max_pm_per_shift": 1
+  },
+  "dispatch": {
+    "rule": "EDD",
+    "weights": {"due_date": 0.3333333333333333, "wear_risk": 0.3333333333333333, "setup": 0.3333333333333333}
+  },
+  "rules": []
+}
