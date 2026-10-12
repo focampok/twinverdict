@@ -1,0 +1,57 @@
+---
+description: Contexto y reglas del proyecto TwinVerdict
+alwaysApply: true
+---
+
+# TwinVerdict
+
+## Qué es
+Gemelo simulado (SimPy) de una línea de producción con 5 máquinas y 3 productos. Un LLM abierto
+(vLLM en AMD MI300X, desde el martes) propone políticas de mantenimiento y despacho en JSON validado.
+Ninguna política se recomienda sin probarla en el simulador sobre muchas semillas. El número lo da
+el simulador, nunca el modelo. El producto termina en una tarjeta de operador: una recomendación
+clara, con números verificados y aprobación humana. Plan completo: docs/PLAN.md (v4).
+
+## Stack
+Python 3.12, SimPy 4, NumPy, Pydantic v2, FastAPI, SQLAlchemy 2, Alembic, Postgres (misma versión
+mayor que el servicio Postgres de Railway), SDK openai (async), pytest, ruff, GitHub Actions.
+Gestor: uv (pyproject.toml + uv.lock). Docker solo para la imagen de Railway.
+
+## Entornos
+- Desarrollo nativo, sin docker compose; Docker solo para Railway. Postgres instalado en el
+  sistema, mock LLM con uvicorn, web y worker como procesos locales, todo vía Makefile
+  (setup, db, mock-llm, web, worker, dev, test, lint, bench) y honcho (Procfile.dev).
+- CI: GitHub Actions con Postgres como services: del workflow.
+- Producción: servicio Postgres administrado de Railway (DATABASE_URL referenciada desde el
+  servicio). En la GPU, el worker corre nativo y usa la URL pública de Railway con
+  sslmode=require; vLLM corre en su contenedor ROCm (única excepción), escucha en 127.0.0.1
+  con --api-key y se usa por túnel SSH. Nunca se expone a internet.
+- Entre entornos solo cambian variables (DATABASE_URL, LLM_BASE_URL, LLM_MODEL, LLM_API_KEY, MODE).
+- Nunca crear docker-compose.yml ni dependencias de Docker para desarrollar o testear.
+
+## Estructura
+sim/ policy/ search/ llm/ eval/ baselines/ guard/ api/ ui/ db/ worker/ bench/ infra/gpu/ tests/ docs/
+
+## Convenciones
+- Type hints en todo el código público. ruff para lint y formato (line-length 100).
+- Determinismo: toda aleatoriedad sale de numpy.random.Generator creado desde la semilla.
+  Prohibido random global, np.random.* sin Generator, time.time() o el orden de dicts/sets
+  como fuente de decisiones dentro de la simulación.
+- La política es JSON validado con Pydantic, nunca código ejecutable.
+- La configuración entra por variables de entorno (ver .env.example). Nunca secretos en el repo.
+- El LLM siempre se usa a través de llm/client.py con interfaz compatible con OpenAI.
+  Hoy se usa el mock; cambiar a vLLM real debe requerir solo cambiar LLM_BASE_URL y LLM_MODEL.
+- Funciones pequeñas y puras donde se pueda; simulate(policy, seed) no toca red, disco ni BD.
+
+## Alcance actual (lunes 12, desde cero)
+Repo creado hoy después del kickoff. Hoy solo la línea base sin GPU: esquema, simulador v0,
+simulate() y KPIs, mock LLM y LLMClient, BD con Alembic, API healthz/readyz, worker stub,
+Makefile nativo y CI. Si sobra tiempo: infra/gpu/ (up.sh, vllm.sh, worker.sh), smoke de JSON
+guiado y harness de benchmarks, todo probado contra el mock.
+No implementar: vLLM real, Optuna, bucle de búsqueda, UI real, despliegue a Railway (solo se dejan
+Dockerfile y railway.toml), SSE, autenticación, docker compose, nada de Google.
+Si algo parece necesario y está fuera de alcance, deja un TODO y avísame; no lo construyas.
+
+## Antes de decir "listo"
+Ejecuta `uv run ruff check .`, `uv run ruff format --check .` y `uv run pytest -q`.
+Reporta la salida real. Si algo falla, arréglalo o explica por qué no.
