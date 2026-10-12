@@ -1,0 +1,66 @@
+[project]
+name = "twinverdict"
+version = "0.1.0"
+description = "Gemelo simulado de una línea de producción con políticas propuestas por un LLM."
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+license = { text = "MIT" }
+dependencies = [
+    "simpy>=4",
+    "numpy",
+    "pydantic>=2",
+    "fastapi",
+    "uvicorn[standard]",
+    "jinja2",
+    "sqlalchemy>=2",
+    "alembic",
+    "psycopg[binary]>=3",
+    "openai>=1",
+    "httpx",
+    "pydantic-settings",
+]
+
+[dependency-groups]
+dev = [
+    "pytest",
+    "pytest-asyncio",
+    "ruff",
+    "honcho",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+py-modules = ["config"]
+
+[tool.setuptools.packages.find]
+include = [
+    "sim*",
+    "policy*",
+    "search*",
+    "llm*",
+    "eval*",
+    "baselines*",
+    "guard*",
+    "api*",
+    "ui*",
+    "db*",
+    "worker*",
+    "bench*",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+markers = [
+    "db: tests that need a reachable Postgres",
+]
