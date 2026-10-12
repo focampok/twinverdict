@@ -1,0 +1,60 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+# igualar a Railway
+env:
+  PG_MAJOR: "16"
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+          enable-cache: true
+      - run: uv sync
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:${{ env.PG_MAJOR }}
+        env:
+          POSTGRES_USER: planta
+          POSTGRES_PASSWORD: planta
+          POSTGRES_DB: planta
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U planta -d planta"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql+psycopg://planta:planta@localhost:5432/planta
+      LLM_BASE_URL: http://localhost:8001/v1
+      LLM_MODEL: mock
+      LLM_API_KEY: mock
+      MODE: live
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+          enable-cache: true
+      - run: uv sync
+      - run: uv run alembic upgrade head
+      - run: uv run pytest -q
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t planta .
