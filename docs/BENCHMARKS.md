@@ -1,6 +1,8 @@
 # Benchmarks
 
-Fecha de la medición local: 2026-10-12. Postgres local 16.15. Los números de GPU se llenan el martes; no hay precio por hora confirmado en la consola.
+Fecha de la medición local: 2026-10-12. Postgres local 16.15. Los números de la MI300X se llenan el martes.
+
+Precio público de DigitalOcean, vigente al 12 oct 2026: AMD Instinct MI300X a $2.59/GPU/hora bajo demanda (1 GPU; 20 vCPU, 240 GiB RAM, 192 GB de memoria de GPU). El paquete de 8 GPUs son $20.72/hora. El plan reservado a 12 meses es $1.91/GPU/hora y no aplica a sesiones que se destruyen el mismo día. Con $100 de crédito, $2.59/hora da unas 38 horas: la tabla B del plan v4. Fuente: [GPU Droplets Pricing](https://www.digitalocean.com/pricing/gpu-droplets). El método de pago de la cuenta ya está agregado.
 
 ## Lunes 12, máquina local
 
@@ -21,7 +23,7 @@ El mock LLM en esta misma máquina (`bench.llm_throughput --concurrency 8,16,32,
 - Modelo:
 - Imagen de vLLM (tag exacto):
 - Núcleos de la instancia:
-- Precio por hora confirmado en la consola:
+- Precio por hora: $2.59 bajo demanda (página pública de DigitalOcean, 12 oct 2026). Confirmar el mismo número en la consola al crear la instancia.
 - `bench.llm_smoke`:
 - `bench.llm_throughput`:
 - `bench.sim_speed` en la instancia:
