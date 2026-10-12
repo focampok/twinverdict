@@ -1,0 +1,12 @@
+{
+  "throughput": 1.0,
+  "on_time_rate": 1.0,
+  "unplanned_downtime_h": 1.0,
+  "planned_downtime_h": 0.5,
+  "maintenance_cost": 0.5,
+  "ref_throughput": 400.0,
+  "ref_on_time_rate": 1.0,
+  "ref_unplanned_downtime_h": 40.0,
+  "ref_planned_downtime_h": 20.0,
+  "ref_maintenance_cost": 10000.0
+}
