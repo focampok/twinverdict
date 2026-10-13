@@ -87,6 +87,30 @@ class MetricRow(Base):
     sims_spent: Mapped[int] = mapped_column(Integer, nullable=False)
 
 
+class SearchRun(Base):
+    """Corrida de búsqueda lista para replay. Rehacer el mismo job marca la anterior superseded."""
+
+    __tablename__ = "search_runs"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('running', 'done', 'failed', 'superseded')",
+            name="ck_search_runs_status",
+        ),
+        Index("ix_search_runs_job", "job_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    job_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("jobs.id"), nullable=False)
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    config: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    total_simulations: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    best_policy_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("policies.id"))
+    best_objective: Mapped[float | None] = mapped_column(Float)
+    raw_json: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+
+
 class RunEvent(Base):
     __tablename__ = "runs"
 

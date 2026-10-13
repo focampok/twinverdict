@@ -20,12 +20,14 @@ def migrated_database() -> None:
     command.upgrade(Config("alembic.ini"), "head")
     engine = get_engine()
     with engine.begin() as connection:
-        connection.execute(text("TRUNCATE runs, metrics, policies, jobs RESTART IDENTITY CASCADE"))
+        connection.execute(
+            text("TRUNCATE search_runs, runs, metrics, policies, jobs RESTART IDENTITY CASCADE")
+        )
 
 
 def test_migration_applies() -> None:
     names = set(inspect(get_engine()).get_table_names())
-    assert {"jobs", "policies", "metrics", "runs"} <= names
+    assert {"jobs", "policies", "metrics", "runs", "search_runs"} <= names
 
 
 def test_enqueue_and_process_one() -> None:

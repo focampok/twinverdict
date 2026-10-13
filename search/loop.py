@@ -55,6 +55,7 @@ class SearchResult:
     best_objective: float
     fixed_objective: float
     holdout_objective: float | None
+    holdout: EvaluatedPolicy | None
     seed: int
     scenario: str
 
@@ -123,6 +124,15 @@ def result_payload(result: SearchResult, model: str) -> dict:
         "best_objective": result.best_objective,
         "fixed_objective": result.fixed_objective,
         "holdout_objective": result.holdout_objective,
+        "holdout": None
+        if result.holdout is None
+        else {
+            "objective": result.holdout.objective,
+            "kpis": result.holdout.kpis,
+            "n_seeds": result.holdout.n_seeds,
+            "ci_low": result.holdout.ci_low,
+            "ci_high": result.holdout.ci_high,
+        },
         "best_policy": result.best_policy.model_dump(mode="json", by_alias=True),
         "policies": [_eval(item) for item in result.policies],
         "rounds": [
@@ -186,11 +196,10 @@ async def run_search(
             flush=True,
         )
     best = sorted(pool, key=_rank_key)[0]
-    holdout_objective = None
+    holdout = None
     if holdout_seeds > 0:
         hold_seeds = list(range(1_000_000 + rng_seed, 1_000_000 + rng_seed + holdout_seeds))
-        held = evaluate_policy(best.policy, hold_seeds, pool_workers, scenario, best.source, -1)
-        holdout_objective = held.objective
+        holdout = evaluate_policy(best.policy, hold_seeds, pool_workers, scenario, best.source, -1)
         sims += holdout_seeds
     return SearchResult(
         policies=policies,
@@ -199,7 +208,8 @@ async def run_search(
         best_policy=best.policy,
         best_objective=best.objective,
         fixed_objective=fixed.objective,
-        holdout_objective=holdout_objective,
+        holdout_objective=None if holdout is None else holdout.objective,
+        holdout=holdout,
         seed=rng_seed,
         scenario=scenario,
     )
