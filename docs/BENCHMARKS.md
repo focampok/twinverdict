@@ -34,6 +34,11 @@ El mock LLM en esta misma máquina (`bench.llm_throughput --concurrency 8,16,32,
   | 32 | 796.5 | 2267.5 | 1.8544 | 3.3896 |
 
 - `bench.sim_speed --seeds 100 --workers 16` en esta laptop (16 núcleos, la misma del lunes): serie media 0.0909 s, p95 0.1137 s. Paralelo, tiempo dentro del proceso: media 0.1741 s, p95 0.2897 s. Reloj de pared: 1.206 s para 100 simulaciones, 0.0121 s por simulación.
-- `bench.budget` con `GPU_PRICE_PER_HOUR`: pendiente del cierre de N, K y R.
-- Combinación elegida (N, K, R): pendiente.
+- `bench.budget` con `GPU_PRICE_PER_HOUR=1.99`: la grilla del harness (N en 16/32/48, K en 30/50/100, R en 6/8) cabe entera en 25 min. La más grande es N=48, K=100, R=8 en 8.32 min (39_000 simulaciones, $0.28). Eso queda por debajo de la ventana de 20 a 30 min, así que K sube fuera de la grilla.
+- Combinación elegida: **N=48, K=300, R=8** (23.8 min). Cálculo con 796.5 políticas válidas por minuto a concurrencia 32 y 0.012056 s por simulación (16 workers):
+  - Propuestas: 48 × 8 = 384. Tiempo de LLM: 384 / 796.5 = 0.48 min.
+  - Simulaciones: 48 × 300 × 8 = 115_200 de entrenamiento, más 300 reservadas y 300 de estrés = 115_800.
+  - Tiempo de simulación: 115_800 × 0.012056 / 60 = 23.27 min.
+  - Total: 0.48 + 23.27 = 23.8 min. Costo de GPU a $1.99/h: 23.8 / 60 × 1.99 = $0.79.
+  - El reloj es la simulación. Subir K de 100 a 300 usa la ventana en más semillas por política. N=48 es el tope de la grilla; R=8 es el del plan. Con `SIM_WORKERS=2` el tramo de simulación se alarga ×8 y se sale de la ventana.
 - Hora de inicio, hora de fin y costo de la sesión: la instancia sigue encendida. No se anota el cierre hasta destruirla en la consola.
