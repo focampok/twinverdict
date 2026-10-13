@@ -103,6 +103,8 @@ class LLMClient:
                     "type": "json_schema",
                     "json_schema": {"name": "policy", "schema": schema, "strict": True},
                 },
+                # Qwen3 piensa por defecto; sin esto una petición de la tanda no termina.
+                extra_body={"chat_template_kwargs": {"enable_thinking": False}},
             )
             latency = time.perf_counter() - started
         content = response.choices[0].message.content or ""

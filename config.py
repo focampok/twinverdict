@@ -31,7 +31,8 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "postgresql+psycopg://planta:planta@localhost:5432/planta"
     MODE: Literal["live", "replay"] = "live"
     LLM_BASE_URL: str = "http://localhost:8001/v1"
-    LLM_MODEL: str = "mock"
+    # Qwen3-8B es el modelo por defecto. Qwen3-32B se evalúa por calidad de política.
+    LLM_MODEL: str = "Qwen/Qwen3-8B"
     LLM_API_KEY: str = "mock"
     ADMIN_TOKEN: str = ""
     SIM_WORKERS: int = 2

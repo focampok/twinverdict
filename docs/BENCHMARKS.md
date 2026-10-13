@@ -41,4 +41,31 @@ El mock LLM en esta misma máquina (`bench.llm_throughput --concurrency 8,16,32,
   - Tiempo de simulación: 115_800 × 0.012056 / 60 = 23.27 min.
   - Total: 0.48 + 23.27 = 23.8 min. Costo de GPU a $1.99/h: 23.8 / 60 × 1.99 = $0.79.
   - El reloj es la simulación. Subir K de 100 a 300 usa la ventana en más semillas por política. N=48 es el tope de la grilla; R=8 es el del plan. Con `SIM_WORKERS=2` el tramo de simulación se alarga ×8 y se sale de la ventana.
-- Hora de inicio, hora de fin y costo de la sesión: la instancia sigue encendida. No se anota el cierre hasta destruirla en la consola.
+- Hora de inicio, hora de fin y costo de la sesión: la instancia ya fue destruida. El repo no tiene la hora de fin ni el costo cerrado.
+
+## Qwen3-32B, misma sesión
+
+Cambio con `infra/gpu/gpu.sh serve Qwen/Qwen3-32B` y `wait`, antes de destruir la instancia. El cliente manda `chat_template_kwargs.enable_thinking=false`: sin eso, una de 20 peticiones del 32B no terminaba (dos intentos, ~50 tokens/s sin parar). El 8B de arriba se midió con el thinking por defecto; el JSON guiado igual cerraba solo.
+
+- `bench.llm_smoke --n 20`: 17/20 válidas, tasa 0.850. p50 1.598 s, p95 2.660 s, 425.0 tokens de salida por segundo. Las 3 inválidas traen `rule=WEIGHTED` sin `weights`; el esquema guiado los deja opcionales y Pydantic los exige.
+- `bench.llm_throughput --concurrency 1,8,32 --n 64`:
+
+  | conc | válidas/min | tok/s | p50 s | p95 s | válidas |
+  |---:|---:|---:|---:|---:|---:|
+  | 1 | 48.2 | 49.2 | 0.8762 | 1.8249 | 55/64 |
+  | 8 | 275.5 | 281.2 | 1.1111 | 2.4059 | 56/64 |
+  | 32 | 634.2 | 675.0 | 2.0813 | 3.7793 | 56/64 |
+
+## Comparación 8B vs 32B
+
+Misma laptop para la simulación (0.0121 s por simulación, 16 workers). Concurrencia 32:
+
+| | 8B | 32B |
+|---|---:|---:|
+| JSON válido (smoke, n=20) | 100% | 85% |
+| válidas/min | 796.5 | 634.2 |
+| tok/s | 2267.5 | 675.0 |
+| p50 s | 1.8544 | 2.0813 |
+| p95 s | 3.3896 | 3.7793 |
+
+Con N=48, K=300, R=8 el LLM pide 384 políticas válidas. El 8B tarda 0.48 min; el 32B, 384 / 634.2 = 0.61 min. La simulación sigue en 23.27 min. El total pasa de 23.8 a 23.9 min. N, K y R no cambian: el reloj sigue siendo la simulación. El 8B da más tokens por segundo y no baja de 0.95 de JSON válido, así que sigue como `LLM_MODEL` por defecto. El 32B se evaluará por calidad de política, no por tokens por segundo.
