@@ -43,14 +43,15 @@ sim/ policy/ search/ llm/ eval/ baselines/ guard/ api/ ui/ db/ worker/ bench/ in
   Hoy se usa el mock; cambiar a vLLM real debe requerir solo cambiar LLM_BASE_URL y LLM_MODEL.
 - Funciones pequeñas y puras donde se pueda; simulate(policy, seed) no toca red, disco ni BD.
 
-## Alcance actual (lunes 12, desde cero)
-Repo creado hoy después del kickoff. Hoy solo la línea base sin GPU: esquema, simulador v0,
-simulate() y KPIs, mock LLM y LLMClient, BD con Alembic, API healthz/readyz, worker stub,
-Makefile nativo y CI. Si sobra tiempo: infra/gpu/ (up.sh, vllm.sh, worker.sh), smoke de JSON
-guiado y harness de benchmarks, todo probado contra el mock.
-No implementar: vLLM real, Optuna, bucle de búsqueda, UI real, despliegue a Railway (solo se dejan
-Dockerfile y railway.toml), SSE, autenticación, docker compose, nada de Google.
-Si algo parece necesario y está fuera de alcance, deja un TODO y avísame; no lo construyas.
+## Alcance actual (martes 13)
+Primera sesión de GPU: MI300X a $1.99/h (escenario A, ~50 h; destruir al terminar), imagen
+DigitalOcean vLLM 0.27.1 1-Click, contenedor `rocm`, Qwen/Qwen3-8B lanzado con docker exec y
+--api-key. Docker publica el puerto 8000 en 0.0.0.0, así que la api-key es obligatoria; el
+acceso desde la laptop es el túnel SSH. Smoke JSON, benchmarks y N/K/R. Tarde: bucle de
+búsqueda (proponer, validar, simular, guardar) primero contra el mock; hito una corrida
+completa en Postgres.
+No implementar: Optuna, UI completa, Railway en producción, SSE, premio de Google, docker compose.
+No crear ni destruir la instancia desde el repo.
 
 ## Antes de decir "listo"
 Ejecuta `uv run ruff check .`, `uv run ruff format --check .` y `uv run pytest -q`.
