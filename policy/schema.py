@@ -14,7 +14,7 @@ DispatchRule = Literal["EDD", "SPT", "WEIGHTED", "CRITICAL_RATIO"]
 
 DEFAULT_PM_THRESHOLD = 0.75
 
-_RULES_NEEDING_WEIGHTS = frozenset({"WEIGHTED", "CRITICAL_RATIO"})
+_RULES_NEEDING_WEIGHTS = frozenset({"WEIGHTED"})
 
 
 class _Strict(BaseModel):
@@ -138,11 +138,32 @@ def parse_policy(raw: dict | str) -> Policy:
     return Policy.model_validate(raw)
 
 
+def _dispatch_variant(rule: str, *, weights_required: bool) -> dict:
+    if weights_required:
+        weights: dict = {"$ref": "#/$defs/Weights"}
+        required = ["rule", "weights"]
+    else:
+        weights = {"anyOf": [{"$ref": "#/$defs/Weights"}, {"type": "null"}]}
+        required = ["rule"]
+    return {
+        "additionalProperties": False,
+        "properties": {
+            "rule": {"enum": [rule], "type": "string"},
+            "weights": weights,
+        },
+        "required": required,
+        "title": f"Dispatch_{rule}",
+        "type": "object",
+    }
+
+
 def policy_json_schema() -> dict:
     """Esquema JSON de Policy para la decodificación guiada de vLLM.
 
     vLLM 0.27 responde 500 si el esquema incluye `propertyNames`. El dict de
-    umbrales se declara con una clave por máquina; el JSON sigue siendo un objeto.
+    umbrales se declara con una clave por máquina. `weights` es obligatorio
+    solo con rule WEIGHTED, vía oneOf: xgrammar no aplica bien if/then, y
+    oneOf ya convivió con esta imagen cuando el único 500 era propertyNames.
     """
     schema = Policy.model_json_schema()
     threshold = schema["$defs"]["Maintenance"]["properties"]["pm_wear_threshold"]
@@ -151,6 +172,21 @@ def policy_json_schema() -> dict:
         machine: {"type": "number", "minimum": 0.30, "maximum": 0.95} for machine in MACHINES
     }
     threshold["additionalProperties"] = False
+    mapping: dict[str, str] = {}
+    one_of: list[dict[str, str]] = []
+    for rule in ("EDD", "SPT", "WEIGHTED", "CRITICAL_RATIO"):
+        name = f"Dispatch_{rule}"
+        schema["$defs"][name] = _dispatch_variant(
+            rule, weights_required=rule in _RULES_NEEDING_WEIGHTS
+        )
+        ref = f"#/$defs/{name}"
+        mapping[rule] = ref
+        one_of.append({"$ref": ref})
+    schema["$defs"]["Dispatch"] = {
+        "discriminator": {"mapping": mapping, "propertyName": "rule"},
+        "oneOf": one_of,
+        "title": "Dispatch",
+    }
     return schema
 
 

@@ -37,6 +37,32 @@ def test_weights_normalize_to_one() -> None:
     assert weights.total == pytest.approx(1)
 
 
+def test_weighted_without_weights_is_rejected() -> None:
+    raw = json.loads(json.dumps(FIXED))
+    raw["dispatch"] = {"rule": "WEIGHTED"}
+    with pytest.raises(ValidationError):
+        parse_policy(raw)
+
+
+@pytest.mark.parametrize("rule", ["EDD", "SPT", "CRITICAL_RATIO"])
+def test_other_rules_without_weights_pass(rule: str) -> None:
+    raw = json.loads(json.dumps(FIXED))
+    raw["dispatch"] = {"rule": rule}
+    policy = parse_policy(raw)
+    assert policy.dispatch.rule == rule
+    assert policy.dispatch.weights is not None
+    assert policy.dispatch.weights.total == pytest.approx(1)
+
+
+def test_exported_schema_is_serializable_and_requires_weighted_weights() -> None:
+    schema = policy_json_schema()
+    encoded = json.dumps(schema)
+    assert "propertyNames" not in encoded
+    assert "weights" in schema["$defs"]["Dispatch_WEIGHTED"]["required"]
+    assert "weights" not in schema["$defs"]["Dispatch_EDD"]["required"]
+    assert schema["$defs"]["Dispatch"]["oneOf"]
+
+
 def test_schema_is_json_and_lists_dispatch_rules() -> None:
     schema = policy_json_schema()
     encoded = json.dumps(schema)
