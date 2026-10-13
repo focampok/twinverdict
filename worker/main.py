@@ -1,7 +1,8 @@
-"""Worker que reclama jobs con SKIP LOCKED. Hoy solo corre el baseline."""
+"""Worker que reclama jobs con SKIP LOCKED. Corre baseline o una búsqueda."""
 
 from __future__ import annotations
 
+import asyncio
 import math
 import statistics
 import time
@@ -10,11 +11,16 @@ import uuid
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from config import Settings
 from db.models import Job, MetricRow, PolicyRow, RunEvent, utcnow
 from db.session import session_factory
+from llm.client import LLMClient
 from policy.schema import fixed_rule_policy
+from search.config import SearchConfig
+from search.loop import run_search
+from search.store import persist_search
 from sim.objective import composite_objective, load_objective_weights
-from sim.runner import simulate
+from sim.runner import Scenario, simulate
 
 BASELINE_SEEDS = 10
 
@@ -81,6 +87,60 @@ def _run_baseline(session: Session, job_id: uuid.UUID) -> None:
     )
 
 
+def _search_config(params: dict) -> SearchConfig:
+    config = SearchConfig()
+    updates = {
+        key: int(params[key])
+        for key in ("N", "K", "R", "TOP_K")
+        if key in params and params[key] is not None
+    }
+    if updates:
+        return config.model_copy(update=updates)
+    return config
+
+
+def _run_search(session: Session, job_id: uuid.UUID) -> None:
+    job = session.get(Job, job_id)
+    assert job is not None
+    params = dict(job.params or {})
+    config = _search_config(params)
+    scenario: Scenario = params.get("scenario", "base")
+    seed = int(params.get("seed", 1))
+    workers = int(params["workers"]) if params.get("workers") is not None else None
+    holdout = int(params.get("holdout", 0))
+    model = Settings().LLM_MODEL
+
+    async def _go():
+        client = LLMClient.from_settings(concurrency=max(1, config.N))
+        try:
+            return await run_search(
+                config,
+                client,
+                scenario,
+                seed,
+                workers=workers,
+                holdout_seeds=holdout,
+            )
+        finally:
+            await client.aclose()
+
+    result = asyncio.run(_go())
+    persist_search(
+        session,
+        job_id,
+        result,
+        model=model,
+        config={
+            "N": config.N,
+            "K": config.K,
+            "R": config.R,
+            "model": model,
+            "seed": seed,
+            "scenario": scenario,
+        },
+    )
+
+
 def process_one(session: Session) -> bool:
     """Reclama un job queued. True si había trabajo."""
     job = session.scalars(
@@ -100,9 +160,12 @@ def process_one(session: Session) -> bool:
     _event(session, job_id, 1, "claimed", {"kind": kind})
     session.commit()
     try:
-        if kind != "baseline":
-            raise RuntimeError(f"kind no soportado en el stub: {kind}")
-        _run_baseline(session, job_id)
+        if kind == "baseline":
+            _run_baseline(session, job_id)
+        elif kind == "search":
+            _run_search(session, job_id)
+        else:
+            raise RuntimeError(f"kind no soportado: {kind}")
         finished = session.get(Job, job_id)
         assert finished is not None
         finished.status = "done"

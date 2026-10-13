@@ -3,7 +3,7 @@ include .env
 export
 endif
 
-.PHONY: setup db mock-llm web worker dev test lint bench enqueue-baseline search-mock docker-build
+.PHONY: setup db mock-llm web worker dev test lint bench enqueue-baseline enqueue-search search-mock docker-build
 
 setup:
 	uv sync
@@ -35,6 +35,9 @@ bench:
 
 enqueue-baseline:
 	uv run python -m worker.enqueue baseline
+
+enqueue-search:
+	uv run python -m worker.enqueue search
 
 search-mock:
 	uv run python -m search.loop --seed 1
