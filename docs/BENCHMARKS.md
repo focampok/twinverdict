@@ -20,13 +20,20 @@ El mock LLM en esta misma máquina (`bench.llm_throughput --concurrency 8,16,32,
 
 ## Martes 13, MI300X
 
-- Modelo:
-- Imagen de vLLM (tag exacto):
-- Núcleos de la instancia:
-- Precio por hora: $2.59 bajo demanda (página pública de DigitalOcean, 12 oct 2026). Confirmar el mismo número en la consola al crear la instancia.
-- `bench.llm_smoke`:
-- `bench.llm_throughput`:
-- `bench.sim_speed` en la instancia:
-- `bench.budget` con `GPU_PRICE_PER_HOUR`:
-- Combinación elegida (N, K, R):
-- Hora de inicio, hora de fin y costo de la sesión:
+- Modelo: `Qwen/Qwen3-8B`.
+- Imagen: DigitalOcean vLLM 0.27.1 1-Click. Contenedor e imagen Docker `rocm`. vLLM lanzado con `docker exec` y `--api-key`. Fingerprint del servidor: `vllm-0.27.1-71b87f10`.
+- Núcleos de la instancia: 20 (`nproc`). La simulación de abajo no corrió ahí.
+- Precio por hora de esta sesión: $1.99 (escenario A, unas 50 h con $100). Docker publica el puerto 8000 en `0.0.0.0`; la api-key es obligatoria. El acceso medido fue el túnel SSH a `127.0.0.1:8000`.
+- `bench.llm_smoke --n 20` contra el esquema de `policy/schema.py` (`response_format` json_schema strict): 20/20 válidas, tasa 1.000. p50 4.372 s, p95 5.259 s, 570.1 tokens de salida por segundo. El cliente pide las 20 en paralelo (concurrencia 32).
+- `bench.llm_throughput --concurrency 1,8,32 --n 64` (64/64 válidas en los tres niveles):
+
+  | conc | válidas/min | tok/s | p50 s | p95 s |
+  |---:|---:|---:|---:|---:|
+  | 1 | 65.8 | 175.1 | 0.8731 | 1.6029 |
+  | 8 | 310.5 | 821.4 | 1.3401 | 2.4921 |
+  | 32 | 796.5 | 2267.5 | 1.8544 | 3.3896 |
+
+- `bench.sim_speed --seeds 100 --workers 16` en esta laptop (16 núcleos, la misma del lunes): serie media 0.0909 s, p95 0.1137 s. Paralelo, tiempo dentro del proceso: media 0.1741 s, p95 0.2897 s. Reloj de pared: 1.206 s para 100 simulaciones, 0.0121 s por simulación.
+- `bench.budget` con `GPU_PRICE_PER_HOUR`: pendiente del cierre de N, K y R.
+- Combinación elegida (N, K, R): pendiente.
+- Hora de inicio, hora de fin y costo de la sesión: la instancia sigue encendida. No se anota el cierre hasta destruirla en la consola.
