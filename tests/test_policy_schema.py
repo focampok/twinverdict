@@ -42,6 +42,9 @@ def test_schema_is_json_and_lists_dispatch_rules() -> None:
     encoded = json.dumps(schema)
     for rule in ("EDD", "SPT", "WEIGHTED", "CRITICAL_RATIO"):
         assert rule in encoded
+    assert "propertyNames" not in encoded
+    threshold = schema["$defs"]["Maintenance"]["properties"]["pm_wear_threshold"]
+    assert set(threshold["properties"]) == {"M1", "M2", "M3", "M4", "M5"}
 
 
 @pytest.mark.parametrize(

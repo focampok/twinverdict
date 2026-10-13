@@ -139,8 +139,19 @@ def parse_policy(raw: dict | str) -> Policy:
 
 
 def policy_json_schema() -> dict:
-    """Esquema JSON de Policy para la decodificación guiada de vLLM."""
-    return Policy.model_json_schema()
+    """Esquema JSON de Policy para la decodificación guiada de vLLM.
+
+    vLLM 0.27 responde 500 si el esquema incluye `propertyNames`. El dict de
+    umbrales se declara con una clave por máquina; el JSON sigue siendo un objeto.
+    """
+    schema = Policy.model_json_schema()
+    threshold = schema["$defs"]["Maintenance"]["properties"]["pm_wear_threshold"]
+    threshold.pop("propertyNames", None)
+    threshold["properties"] = {
+        machine: {"type": "number", "minimum": 0.30, "maximum": 0.95} for machine in MACHINES
+    }
+    threshold["additionalProperties"] = False
+    return schema
 
 
 def fixed_rule_policy() -> Policy:
