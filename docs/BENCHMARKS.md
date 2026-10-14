@@ -402,27 +402,41 @@ vacíos, 5 reglas. En `bench/results` no hay corrida 32B de esta sesión. `LLM_M
 **Los objetivos de esta sección no se comparan con los de arriba.** Un 1.52 aquí y un 1.01
 en la tabla de GPU 2 no dicen cuál método gana: la planta es otra.
 
-El JSON que `make gpu2` leerá para Optuna y para la regla fija es
-`bench/results/optuna_default_seed1_20261014.json` (perfil `default`, seed 1, 69_300
-simulaciones de entrenamiento, 16.1 min, 385 trials, 0 fallidos, 16 workers). Su `config`
-declara `failure_midpoint` 0.95 y `failure_steepness` 18. El JSON de antes del corte quedó
-aparte, con nombre que la tabla no recoge (`precut_optuna_…` y `precut_llm_nofeedback_…`):
-mezclar el one-shot viejo (objetivo fijo 0.2489) con este Optuna haría que la tabla tomara
-el mínimo y publicara una planta que no corrió. El one-shot y el bucle de esta planta los
-escribe `make gpu2`; hasta entonces no hay tabla de cuatro métodos.
+`make gpu2` con perfil `default`, seed 1, holdout 300, `SIM_WORKERS=16` y
+`LLM_MODEL=Qwen/Qwen3-8B` por el túnel `http://127.0.0.1:8000/v1`. El bucle es el job
+`2fa98c9c-40c4-4f50-8313-b1049d66a9b1`: `started_at` 2026-10-14 16:53:35−06, `finished_at`
+17:12:59−06 (1164 s). `llm_source=vllm`, commit `b0fd30e`. 384/384 propuestas válidas, 0
+inválidas. `simulations_total` del job es **70_500** porque suma las 1_200 de holdout y estrés
+(4 × 300); la curva de entrenamiento cierra en **69_300**. La regla fija y Optuna son las
+corridas locales del corte (Optuna: 16.1 min, 385 trials, 0 fallidos). El JSON de Optuna
+declara `failure_midpoint` 0.95 y `failure_steepness` 18. El one-shot también fue 384/384
+válidas.
 
-Holdout de 300 semillas (1 000 001–1 000 300), el mismo que usa `eval.efficiency`. El IC es
-el bootstrap de 2000 remuestreos con `PCG64(0)`. La columna «sims al 90%» espera a los cuatro
-métodos, porque el umbral usa el mejor global.
+Tabla que imprimió `eval.efficiency` (`bench/results/efficiency_20261014.json`, umbral
+`0.7858 + 0.9*(1.5188 − 0.7858) = 1.4455`). El IC de holdout es el bootstrap de 2000
+remuestreos con `PCG64(0)`.
 
-| método | train | holdout | IC 95% | % a tiempo | sims |
-|---|---:|---:|---|---:|---:|
-| regla fija | 0.7858 | 0.7725 | [0.7431, 0.8017] | 50.6% | 180 |
-| Optuna TPE | 1.5188 | 1.5126 | [1.5048, 1.5198] | 99.9% | 69_300 |
+| método | train | holdout | IC 95% | % a tiempo | sims | sims al 90% | notas |
+|---|---:|---:|---|---:|---:|---|---|
+| regla fija | 0.7858 | 0.7725 | [0.7431, 0.8017] | 50.6% | 180 | no alcanza | definitivo |
+| Optuna TPE | 1.5188 | 1.5126 | [1.5048, 1.5198] | 99.9% | 69_300 | 5_760 | definitivo |
+| LLM sin retroalimentación | 1.2318 | 1.2259 | [1.2167, 1.2349] | 91.4% | 69_300 | no alcanza | vLLM real |
+| bucle con retroalimentación | 0.7858 | 0.7725 | [0.7431, 0.8017] | 50.6% | 70_500 | no alcanza | vLLM real |
 
-Precisión del JSON: regla fija **0.7858323573895744**, Optuna **1.5188378682250157**.
+Precisión del JSON, sin redondear: regla fija y bucle **0.7858323573895744** desde la
+política 0 hasta 69_300. One-shot `best_objective` **1.2317665500868358** desde el lote 6
+(52_020 simulaciones). Optuna **1.5188378682250157**. Ningún método con LLM cruza el umbral
+1.4455373171414716.
 
-El titular de % a tiempo, en las 100 semillas de `docs/CALIBRATION.md` (1 000 001–1 000 100),
-se reproduce con el default nuevo: regla fija 48.6% y la mejor política del bucle de ese
-día 99.2%. En las 300 de holdout esa misma pareja es 50.6% → 99.3% (objetivo de holdout
-1.406985). Sigue en la línea de 48.6% → ~99%.
+| simulaciones | 180 | 8_820 | 34_740 | 52_020 | 69_300 |
+|---|---:|---:|---:|---:|---:|
+| one-shot, mejor hasta ahí | 0.7858 | 1.1514 | 1.1953 | 1.2318 | 1.2318 |
+| bucle, mejor hasta ahí | 0.7858 | 0.7858 | 0.7858 | 0.7858 | 0.7858 |
+
+Holdout del bucle en la tarjeta (`operator_card_2fa98c9c-…json`), objetivo 0.7725039817047121,
+IC guardado por el job [0.7429516383465712, 0.8020563250628531], % a tiempo 0.5057068010861212.
+Esos tres números, y el resto de KPIs de train, holdout y estrés, coinciden con la regla fija
+(`delta_on_time` 0). La política guardada como mejor es EDD, `max_pm_per_shift=1`,
+`pm_wear_threshold` vacío, 0 reglas. El one-shot ganador es WEIGHTED con pesos (0.4, 0.35,
+0.25), `max_pm_per_shift=2`, umbrales 0.65/0.70/0.75/0.80/0.85 y 5 reglas. `LLM_MODEL` sigue
+en `Qwen/Qwen3-8B`.
