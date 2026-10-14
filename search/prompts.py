@@ -5,7 +5,17 @@ from __future__ import annotations
 import json
 from typing import Protocol
 
-from policy.schema import fixed_rule_policy
+from policy.schema import (
+    DEFAULT_PM_THRESHOLD,
+    MACHINES,
+    Policy,
+    fixed_rule_policy,
+    parse_policy,
+)
+
+# El despacho lee los pesos en WEIGHTED y en CRITICAL_RATIO (sim/dispatch.py).
+# EDD y SPT no. version no entra en ninguna decisión.
+_RULES_USING_WEIGHTS = frozenset({"WEIGHTED", "CRITICAL_RATIO"})
 
 
 class _Scored(Protocol):
@@ -32,18 +42,83 @@ def _public_kpis(kpis: dict[str, float]) -> dict[str, float]:
     return {key: kpis[key] for key in sorted(kpis) if key not in hidden}
 
 
+def simulator_key(policy: Policy) -> tuple:
+    """Lo que el simulador lee. Dos políticas con la misma clave puntúan igual.
+
+    Umbral ausente vale el default 0.75, igual que `threshold_for`. Los pesos
+    entran solo si la regla de despacho los usa. `version` queda fuera.
+    """
+    thresholds = tuple(policy.maintenance.threshold_for(machine) for machine in MACHINES)
+    weights = None
+    if policy.dispatch.rule in _RULES_USING_WEIGHTS:
+        stored = policy.dispatch.weights
+        assert stored is not None
+        weights = (stored.due_date, stored.wear_risk, stored.setup)
+    rules = []
+    for rule in policy.rules:
+        cond = rule.cond
+        action = rule.then_
+        payload = action.model_dump(mode="json")
+        rules.append(
+            (
+                cond.machine,
+                cond.wear_gt,
+                cond.urgent_order_waiting,
+                cond.queue_len_gt,
+                cond.product_waiting,
+                tuple(sorted(payload.items())),
+            )
+        )
+    return (
+        policy.dispatch.rule,
+        thresholds,
+        policy.maintenance.max_pm_per_shift,
+        tuple(rules),
+        weights,
+    )
+
+
+def dedupe_top(ranked: list[_Scored], k: int) -> list[_Scored]:
+    """Las k mejores políticas que el simulador distingue, en el orden recibido."""
+    chosen: list[_Scored] = []
+    seen: set[tuple] = set()
+    for item in ranked:
+        key = simulator_key(parse_policy(item.policy_json()))
+        if key in seen:
+            continue
+        seen.add(key)
+        chosen.append(item)
+        if len(chosen) == k:
+            break
+    return chosen
+
+
+def _prompt_json(item: _Scored) -> str:
+    body = dict(item.policy_json())
+    body["version"] = 1
+    return json.dumps(body, sort_keys=True, ensure_ascii=False)
+
+
 def build_search_prompt(scenario: str, top: list[_Scored]) -> str:
     lines = [f"escenario: {scenario}"]
     if not top:
         lines.append("No hay políticas previas.")
+        lines.append(
+            "Propón una política con version=1 y pm_wear_threshold de M1 a M5, "
+            f"cada uno entre 0.30 y 0.95 (el ausente vale {DEFAULT_PM_THRESHOLD})."
+        )
+        return "\n".join(lines)
     for index, item in enumerate(top, start=1):
-        body = json.dumps(item.policy_json(), sort_keys=True, ensure_ascii=False)
         kpis = json.dumps(_public_kpis(item.kpis), sort_keys=True)
         lines.append(
             f"politica_{index} objetivo={item.objective:.6f} kpis={kpis} "
-            f"fallas={failure_note(item.kpis)} json={body}"
+            f"fallas={failure_note(item.kpis)} json={_prompt_json(item)}"
         )
-    lines.append("Propón una política distinta que mejore el objetivo.")
+    lines.append(
+        "Sobre politica_1, haz de 2 a 4 cambios locales. "
+        "Uno de ellos es pm_wear_threshold: escribe un umbral para M1, M2, M3, M4 y M5, "
+        "cada uno entre 0.30 y 0.95. Fija version=1. Mantén el resto de politica_1."
+    )
     return "\n".join(lines)
 
 

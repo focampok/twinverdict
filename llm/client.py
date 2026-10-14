@@ -41,10 +41,16 @@ class LLMClient:
         api_key: str,
         concurrency: int = 32,
         http_client: httpx.AsyncClient | None = None,
+        temperature: float = 1.0,
+        top_p: float = 0.95,
+        top_k: int = -1,
     ) -> None:
         self.model = model
         self.base_url = base_url
         self.api_key = api_key
+        self.temperature = temperature
+        self.top_p = top_p
+        self.top_k = top_k
         self._client = AsyncOpenAI(base_url=base_url, api_key=api_key, http_client=http_client)
         self._limit = asyncio.Semaphore(concurrency)
         self._owns_http = http_client is None
@@ -57,6 +63,9 @@ class LLMClient:
             model=settings.LLM_MODEL,
             api_key=settings.LLM_API_KEY,
             concurrency=concurrency,
+            temperature=settings.LLM_TEMPERATURE,
+            top_p=settings.LLM_TOP_P,
+            top_k=settings.LLM_TOP_K,
         )
 
     async def aclose(self) -> None:
@@ -99,12 +108,18 @@ class LLMClient:
                 model=self.model,
                 messages=propose_messages(context),
                 seed=seed,
+                temperature=self.temperature,
+                top_p=self.top_p,
                 response_format={
                     "type": "json_schema",
                     "json_schema": {"name": "policy", "schema": schema, "strict": True},
                 },
-                # Qwen3 piensa por defecto; sin esto una petición de la tanda no termina.
-                extra_body={"chat_template_kwargs": {"enable_thinking": False}},
+                # top_k no está en la API de OpenAI. -1 lo deja abierto en vLLM.
+                # Qwen3 piensa por defecto; sin enable_thinking una petición no termina.
+                extra_body={
+                    "top_k": self.top_k,
+                    "chat_template_kwargs": {"enable_thinking": False},
+                },
             )
             latency = time.perf_counter() - started
         content = response.choices[0].message.content or ""

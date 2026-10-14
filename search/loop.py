@@ -11,12 +11,13 @@ import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Protocol
 
 from config import Settings
-from llm.client import LLMClient
+from llm.client import LLMClient, ProposeResult
 from policy.schema import Policy, fixed_rule_policy
 from search.config import SearchConfig
-from search.prompts import build_search_prompt
+from search.prompts import build_search_prompt, dedupe_top
 from search.repro import build_search_config
 from sim.objective import composite_objective, load_objective_weights
 from sim.runner import Scenario, simulate_many
@@ -91,6 +92,76 @@ def _confidence(values: list[float]) -> tuple[float, float, float]:
 def _rank_key(item: EvaluatedPolicy) -> tuple[float, str]:
     body = json.dumps(item.policy_json(), sort_keys=True, ensure_ascii=False)
     return (-item.objective, body)
+
+
+def _exact_json(policy: Policy) -> str:
+    body = policy.model_dump(mode="json", by_alias=True)
+    return json.dumps(body, sort_keys=True, ensure_ascii=False)
+
+
+# Cada duplicado exacto se vuelve a pedir como mucho estas veces. Las semillas de
+# reintento caben en el hueco de 10_000 que separa las rondas (N=48 → menos de 200).
+MAX_EXACT_RETRIES = 2
+
+
+class _Proposer(Protocol):
+    async def propose(self, context: str, n: int, seed: int) -> ProposeResult: ...
+
+
+async def propose_distinct(
+    llm_client: _Proposer,
+    prompt: str,
+    n: int,
+    seed: int,
+    *,
+    max_retries: int = MAX_EXACT_RETRIES,
+) -> tuple[ProposeResult, int]:
+    """Pide n políticas y reintenta las copias exactas, como mucho `max_retries` por copia.
+
+    Se conserva la primera aparición. Cada reintento usa una semilla nueva y, si
+    sigue siendo una copia o sale inválido, se agota el cupo y queda la anterior.
+    """
+    result = await llm_client.propose(prompt, n, seed)
+    seen: dict[str, int] = {}
+    pending: list[int] = []
+    for index, policy in enumerate(result.valid):
+        key = _exact_json(policy)
+        if key in seen:
+            pending.append(index)
+        else:
+            seen[key] = index
+    retries = 0
+    next_seed = seed + n
+    for _attempt in range(max_retries):
+        if not pending:
+            break
+        seeds = [next_seed + offset for offset in range(len(pending))]
+        next_seed += len(pending)
+        retries += len(pending)
+        refreshed = await asyncio.gather(
+            *(llm_client.propose(prompt, 1, retry_seed) for retry_seed in seeds)
+        )
+        still: list[int] = []
+        for index, retry in zip(pending, refreshed, strict=True):
+            result.latencies_s.extend(retry.latencies_s)
+            result.invalid.extend(retry.invalid)
+            result.completion_tokens += retry.completion_tokens
+            result.wall_s += retry.wall_s
+            result.thinking = result.thinking or retry.thinking
+            if not retry.valid:
+                still.append(index)
+                continue
+            candidate = retry.valid[0]
+            key = _exact_json(candidate)
+            if key in seen:
+                still.append(index)
+                continue
+            seen[key] = index
+            result.valid[index] = candidate
+        pending = still
+    elapsed = max(result.wall_s, 1e-9)
+    result.tokens_per_s = result.completion_tokens / elapsed
+    return result, retries
 
 
 def evaluate_policy(
@@ -206,9 +277,11 @@ async def run_search(
     rounds: list[RoundResult] = []
     sims = config.K
     for round_index in range(1, config.R + 1):
-        top = sorted(pool, key=_rank_key)[: config.TOP_K]
+        top = dedupe_top(sorted(pool, key=_rank_key), config.TOP_K)
         prompt = build_search_prompt(scenario, top)
-        proposed = await llm_client.propose(prompt, config.N, rng_seed + round_index * 10_000)
+        proposed, retries = await propose_distinct(
+            llm_client, prompt, config.N, rng_seed + round_index * 10_000
+        )
         evaluated: list[EvaluatedPolicy] = []
         for policy in proposed.valid:
             evaluated.append(_timed(policy, train_seeds, "llm", round_index))
@@ -229,7 +302,8 @@ async def run_search(
         best_now = sorted(pool, key=_rank_key)[0]
         print(
             f"ronda {round_index}/{config.R} validas={len(proposed.valid)} "
-            f"invalidas={len(proposed.invalid)} sims={sims} mejor={best_now.objective:.4f}",
+            f"invalidas={len(proposed.invalid)} reintentos={retries} "
+            f"sims={sims} mejor={best_now.objective:.4f}",
             flush=True,
         )
     best = sorted(pool, key=_rank_key)[0]

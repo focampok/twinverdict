@@ -3,7 +3,7 @@
 from typing import Literal
 from urllib.parse import urlsplit, urlunsplit
 
-from pydantic import field_validator
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -34,6 +34,12 @@ class Settings(BaseSettings):
     # Qwen3-8B es el modelo por defecto. Qwen3-32B se evalúa por calidad de política.
     LLM_MODEL: str = "Qwen/Qwen3-8B"
     LLM_API_KEY: str = "mock"
+    # Muestreo de búsqueda. El cliente los manda siempre: si se omiten, vLLM usa el
+    # generation_config del modelo (Qwen3-8B: temperature 0.6, top_k 20, top_p 0.95).
+    # top_k=-1 es abierto: vLLM considera todos los tokens.
+    LLM_TEMPERATURE: float = Field(default=1.0, ge=0)
+    LLM_TOP_P: float = Field(default=0.95, ge=0, le=1)
+    LLM_TOP_K: int = Field(default=-1, ge=-1)
     ADMIN_TOKEN: str = ""
     SIM_WORKERS: int = 2
 
