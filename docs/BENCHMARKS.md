@@ -357,3 +357,41 @@ El default de `PlantConfig` **no se cambió**: es la vara con la que se midió t
 y cambiarla rompería la comparabilidad. La forma calibrada se usa explícitamente con
 `calibrated_plant_config()`. Adoptarla como default es una decisión pendiente, y de hacerse
 conviene anunciarla en un corte limpio (ver `docs/CALIBRATION.md`).
+
+## Miércoles 14, sesión GPU 2 (Qwen3-8B, vLLM)
+
+`make gpu2` con perfil `default`, seed 1, holdout 300, `SIM_WORKERS=16` y
+`LLM_MODEL=Qwen/Qwen3-8B` por el túnel `http://127.0.0.1:8000/v1`. El bucle es el job
+`4c3fe819-b308-45f0-870d-407854e9f02e`: `started_at` 2026-10-14 14:02:17−06, `finished_at`
+14:20:15−06 (1078 s). `llm_source=vllm`, commit `0d94141`. 384/384 propuestas válidas, 0
+inválidas. `simulations_total` del job es **70_500** porque suma las 1_200 de holdout y estrés
+(4 × 300); la curva de entrenamiento cierra en **69_300**, el mismo presupuesto que Optuna y
+que el one-shot. La regla fija y Optuna de esta tabla son las corridas del miércoles (no
+pasaron por la GPU). El one-shot también fue 384/384 válidas.
+
+Tabla que imprimió `eval.efficiency` (`bench/results/efficiency_20261014.json`, umbral
+`0.2489 + 0.9*(1.0061 − 0.2489) = 0.9303`). El IC de holdout es el bootstrap de 2000
+remuestreos con `PCG64(0)`.
+
+| método | train | holdout | IC 95% | % a tiempo | sims | sims al 90% | notas |
+|---|---:|---:|---|---:|---:|---|---|
+| regla fija | 0.2489 | 0.2483 | [0.2175, 0.2773] | 46.2% | 180 | no alcanza | definitivo |
+| Optuna TPE | 1.0061 | 0.9906 | [0.9779, 1.0031] | 99.6% | 69_300 | 3_060 | definitivo |
+| LLM sin retroalimentación | 0.8274 | 0.8384 | [0.8239, 0.8531] | 83.2% | 69_300 | no alcanza | vLLM real |
+| bucle con retroalimentación | 0.8712 | 0.8772 | [0.8657, 0.8885] | 89.9% | 70_500 | no alcanza | vLLM real |
+
+Precisión del JSON, sin redondear: one-shot `best_objective` **0.827404935352991** desde el
+lote 1 (8_820 simulaciones) hasta 69_300. Bucle `best_objective` **0.8712105287438211** desde
+la ronda 1 (8_820) hasta 69_300. Ninguno cruza el umbral 0.930344254218952.
+
+| simulaciones | 180 | 8_820 | 17_460 | 69_300 |
+|---|---:|---:|---:|---:|
+| one-shot, mejor hasta ahí | 0.2489 | 0.8274 | 0.8274 | 0.8274 |
+| bucle, mejor hasta ahí | 0.2489 | 0.8712 | 0.8712 | 0.8712 |
+
+Holdout del bucle en la tarjeta (`operator_card_4c3fe819-…json`), objetivo 0.8771740180657116,
+IC guardado por el job [0.8656651043782586, 0.8886829317531646], % a tiempo 0.899415303204306.
+La ganadora es SPT, `max_pm_per_shift=2`, `pm_wear_threshold` vacío, 5 reglas. El one-shot
+ganador es WEIGHTED con pesos (0.25, 0.5, 0.25), el mismo `max_pm_per_shift=2` y umbrales
+vacíos, 5 reglas. En `bench/results` no hay corrida 32B de esta sesión. `LLM_MODEL` sigue en
+`Qwen/Qwen3-8B`.
