@@ -20,7 +20,7 @@ def _client() -> tuple[httpx.AsyncClient, LLMClient]:
 
 
 def _short() -> SearchConfig:
-    return SearchConfig(N=2, K=2, R=2, TOP_K=2)
+    return SearchConfig.from_profile("smoke")
 
 
 async def test_short_search_is_schema_valid_and_deterministic() -> None:

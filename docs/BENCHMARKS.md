@@ -154,4 +154,12 @@ Al ritmo del job (0.0212 s/sim) y con 385 políticas (1 + 48×8, todas válidas,
 | 200 | 77_000 | 27.2 |
 | 300 | 115_500 | 40.8 |
 
-**K recomendado: 180** (~24.5 min). N y R se quedan en 48 y 8. El default de `search/config.py` sigue en K=300 hasta aplicar este cambio; el comentario de ese archivo apunta aquí.
+**K por defecto: 180** (perfil `default` en `search/config.py`). N y R siguen en 48 y 8.
+
+Cálculo, con el ritmo sostenido del job (0.0212 s/sim) y 385 políticas (1 regla fija + 48×8, todas válidas):
+
+- Perfil `default`, K=180: 385 × 180 × 0.0212 = 1469 s = **24.5 min**.
+- Perfil `final`, K=300: 385 × 300 × 0.0212 = 2448 s = **40.8 min**. Es la corrida larga si sobra tiempo al cierre; N, R y el resto iguales al default.
+- Perfil `smoke`: N=2, K=2, R=2, TOP_K=2, holdout 0. Lo usan los tests. No es un presupuesto de búsqueda.
+
+En la laptop hace falta `SIM_WORKERS=16`. `SearchConfig.from_profile("final")` y `from_profile("smoke")` arman esos dos perfiles; `SearchConfig()` es el default.

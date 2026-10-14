@@ -37,7 +37,7 @@ def _search():
         concurrency=4,
         http_client=http,
     )
-    config = SearchConfig(N=2, K=2, R=2, TOP_K=2)
+    config = SearchConfig.from_profile("smoke")
 
     async def _run():
         try:
