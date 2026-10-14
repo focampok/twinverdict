@@ -203,3 +203,45 @@ siendo el número de simulaciones, no el minuto.
 Lo que esta tabla no dice: no hay holdout (el presupuesto es de entrenamiento y es el mismo
 por definición, así que comparar en él favorece a todos por igual). La tabla de los cuatro
 métodos con la misma vara es el Prompt 17.
+
+## Miércoles 14, LLM sin retroalimentación
+
+El LLM propone `N*R` políticas con un solo prompt fijo, sin ver objetivos, KPIs ni el top-k
+de rondas anteriores. Mismo presupuesto que una búsqueda del perfil y mismos seeds de
+entrenamiento: perfil `default` (N=48, K=180, R=8) → **69_300 simulaciones**, semillas
+`range(1, 181)`, escenario `base`, `SIM_WORKERS=16`. Las semillas de muestreo son las del
+bucle (`rng_seed + lote*10_000`), para que la única variable sea el texto del prompt.
+Código: `baselines/llm_nofeedback.py`, commit `726e653`; corrida con
+`uv run python -m baselines.llm_nofeedback --profile default --seed 1` contra el mock local.
+
+| método | simulaciones | mejor objetivo | regla fija | válidas | min |
+|---|---:|---:|---:|---:|---:|
+| LLM sin retroalimentación | 69_300 | 0.9592 | 0.2489 | 384/384 | 15.6 |
+| Optuna TPE (de la sección de arriba) | 69_300 | 1.0061 | 0.2489 | — | 13.1 |
+
+Las dos filas son comparables: mismo K, mismas 180 semillas, mismo escenario y el mismo
+presupuesto. Con esa vara, Optuna le saca 0.047 al LLM de un solo disparo.
+
+Curva del mejor objetivo acumulado, del `history` del JSON:
+
+| simulaciones | 180 | 8_820 | 17_460 | 34_740 | 43_380 | 69_300 |
+|---|---:|---:|---:|---:|---:|---:|
+| mejor hasta ahí | 0.2489 | 0.9009 | 0.9009 | 0.9206 | 0.9592 | 0.9592 |
+
+Casi todo el salto está en el primer lote, y del quinto al octavo no se mueve. La política
+ganadora es `WEIGHTED` con pesos (0.423, 0.484, 0.093), umbrales M3=0.95, M4=0.92, M5=0.83,
+`max_pm_per_shift=2` y una regla (`queue_len_gt=4 → BATCH_SAME_PRODUCT`). Ninguna propuesta
+salió inválida.
+
+**Lo que este número no mide, y hay que decirlo al lado.** Contra el mock, esta línea base
+no puede separarse del bucle. El mock deriva cada política de la `seed` y nunca lee el
+contenido del prompt (`llm/mock_server.py`: `_seed_from` mira `body["seed"]` y
+`generate_policy(seed)` no toca los mensajes), así que con las mismas semillas de muestreo
+los 384 candidatos son el mismo conjunto que vería el bucle y el mejor objetivo sale igual
+por construcción. El 0.9592 es el techo de 384 sorteos del mock, no una medida de lo que
+aporta la retroalimentación. Esa comparación necesita vLLM, que sí lee el prompt, y se
+repite en la sesión GPU 2. El Prompt 17 confirma la igualdad con la búsqueda del bucle
+corrida al mismo perfil.
+
+Sobre el reloj: 15.6 min con 16 workers (0.0135 s/sim), entre los 0.0113 s/sim de la corrida
+de Optuna y los 0.0212 s/sim del job `78fea53a`.
