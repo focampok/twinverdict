@@ -163,3 +163,43 @@ Cálculo, con el ritmo sostenido del job (0.0212 s/sim) y 385 políticas (1 regl
 - Perfil `smoke`: N=2, K=2, R=2, TOP_K=2, holdout 0. Lo usan los tests. No es un presupuesto de búsqueda.
 
 En la laptop hace falta `SIM_WORKERS=16`. `SearchConfig.from_profile("final")` y `from_profile("smoke")` arman esos dos perfiles; `SearchConfig()` es el default.
+
+## Miércoles 14, Optuna
+
+Línea base Optuna (TPE) con el mismo presupuesto que el bucle: `K + N*R*K`. Perfil
+`default` (N=48, K=180, R=8) da **69_300 simulaciones** de entrenamiento, en las semillas
+`range(1, 181)` y el escenario `base`. El trial 0 es `fixed_rule_policy()`, igual que la
+política 0 del bucle. `SIM_WORKERS=16`. Código: `baselines/optuna_search.py`, commit
+`d2c7243`; se corrió con `uv run python -m baselines.optuna_search --profile default --seed 1`.
+
+Espacio de búsqueda, con los rangos de los validadores de `policy/schema.py`: umbral
+`pm_wear_threshold` por máquina (0.30–0.95), `max_pm_per_shift` (0–3), la regla de despacho
+en {EDD, SPT, WEIGHTED, CRITICAL_RATIO} y, cuando la regla es WEIGHTED, los tres pesos
+(normalizados a suma 1 por el schema). `rules` va vacía: Optuna no escribe reglas
+condicionales. Esa es la ventaja estructural del LLM y conviene tenerla a la vista al leer
+la tabla.
+
+| método | simulaciones | mejor objetivo | regla fija | trials | min |
+|---|---:|---:|---:|---:|---:|
+| Optuna TPE | 69_300 | 1.0061 | 0.2489 | 385 | 13.1 |
+
+Curva del mejor objetivo acumulado, del `history` del JSON:
+
+| simulaciones | 180 | 8_640 | 17_280 | 34_560 | 51_840 | 69_300 |
+|---|---:|---:|---:|---:|---:|---:|
+| mejor hasta ahí | 0.2489 | 0.9886 | 0.9948 | 0.9995 | 1.0061 | 1.0061 |
+
+Casi todo el valor cae en las primeras 8_640 simulaciones. La política ganadora es
+`CRITICAL_RATIO`, `max_pm_per_shift=2`, umbrales entre 0.734 y 0.828 por máquina, sin
+reglas. Ningún trial quedó inválido (`failed_trials=0`).
+
+Sobre el reloj: 786 s para 69_300 simulaciones dan **0.0113 s/sim** sostenidos con 16
+workers, cerca de los 0.0121 s de la serie corta del lunes y lejos de los 0.0212 s/sim del
+job `78fea53a` de 40.8 min, que son la base de la estimación de 24.5 min de más arriba. El
+simulador no cambió entre las dos mediciones y no se midió un cambio de código que explique
+el factor 1.9; queda anotado como discrepancia abierta. Para comparar métodos la vara sigue
+siendo el número de simulaciones, no el minuto.
+
+Lo que esta tabla no dice: no hay holdout (el presupuesto es de entrenamiento y es el mismo
+por definición, así que comparar en él favorece a todos por igual). La tabla de los cuatro
+métodos con la misma vara es el Prompt 17.
