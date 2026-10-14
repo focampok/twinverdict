@@ -32,7 +32,7 @@ case "${1:-}" in
     r "docker exec rocm pkill -f 'vllm serve' || true; sleep 5; docker exec -d rocm sh -c \"vllm serve $MODEL --port $PORT --api-key \$(cat /root/vllm.key) $EXTRA > /tmp/vllm.log 2>&1\""
     echo "Lanzado $MODEL. Usa: $0 wait" ;;
   wait)
-    for i in $(seq 1 90); do
+    for _ in $(seq 1 90); do
       out=$(r 'curl -s -o /dev/null -w "%{http_code}" localhost:'"$PORT"'/v1/models -H "Authorization: Bearer $(cat /root/vllm.key)"' || true)
       [ "$out" = "200" ] && { echo "vLLM listo."; exit 0; }
       if ! r 'docker exec rocm pgrep -f "vllm serve" >/dev/null'; then echo "vLLM se cayó. Últimas líneas:"; r 'docker exec rocm tail -n 30 /tmp/vllm.log'; exit 1; fi
