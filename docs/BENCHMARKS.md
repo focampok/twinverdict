@@ -297,8 +297,9 @@ no se puede evaluar con el mock. La política ganadora del mock usa una regla
 escritas por un LLM: dice que 384 sorteos no le ganan a TPE. Si el LLM llega a un resultado
 comparable cuando corra contra vLLM, el mensaje es que llega con esas simulaciones y que puede
 explicar el porqué con reglas legibles; hoy esa frase todavía no está medida. La repetición
-contra vLLM es la misma orden, sin tocar código, con `--llm-source vllm` sobre los JSON de esa
-sesión.
+contra vLLM es la misma orden, sin tocar código: cada JSON declara su `config.llm_source`
+(`search/repro.py` la deriva del endpoint y del puerto del mock), y `--llm-source` queda solo
+como override para JSON viejos.
 
 Granularidad de cada curva: es la granularidad con la que el método puede actuar sobre la
 información. Por trial en Optuna (cada trial ve los anteriores, 385 puntos), por ronda o lote
@@ -311,3 +312,48 @@ cruce cae en la frontera del lote y no antes.
 JSON con las cuatro curvas: `bench/results/efficiency_20261014.json` (local; `bench/results`
 está ignorado). La figura queda para el jueves en Chart.js, como permite el plan: no se sumó
 matplotlib.
+
+## Miércoles 14, calibración con AI4I 2020
+
+Curva desgaste → riesgo ajustada con AI4I 2020 (UCI 601, 10 000 filas, descargado el
+2026-10-14, sha256 `dc6630cd…c8a8e`). Detalle completo en **`docs/CALIBRATION.md`**, que es el
+documento honesto de qué se calibró y qué no; aquí van solo los números.
+
+Se etiqueta como falla por desgaste TWF ∪ OSF (141 registros), los dos modos que en AI4I solo
+aparecen a desgaste alto. HDF, PWF y RNF tienen tasa plana en todo el rango y son el fondo.
+
+| parámetro | antes | después (AI4I) |
+|---|---:|---:|
+| `failure_midpoint` | 0.72 | 0.9500 |
+| `failure_steepness` | 14.0 | 18.0 |
+| `failure_base_per_min` | (0.0015, 0.0012, 0.0018) | **sin cambio** (ver abajo) |
+
+**El nivel por minuto NO se calibró**: AI4I no trae duración por registro, así que no hay
+conversión de probabilidad por registro a tasa por minuto con soporte en los datos. El
+parámetro queda como supuesto y así está marcado en `sim/calibrated_params.json`
+(`level_calibrated: false`).
+
+Impacto, con la misma política y 100 semillas de holdout (1 000 001–1 000 100), escenario
+`base`. `uv run python -m bench.calibration_impact`:
+
+| política | config | objetivo | % a tiempo | fallas | paro no plan. (h) |
+|---|---|---:|---:|---:|---:|
+| regla fija | por defecto | 0.2275 | 44.7% | 45.74 | 20.3614 |
+| regla fija | calibrado | 0.7424 | 48.6% | 27.30 | 12.4468 |
+| mejor del bucle | por defecto | 0.9480 | 98.4% | 27.56 | 12.3640 |
+| mejor del bucle | calibrado | 1.4047 | 99.2% | 4.58 | 1.9679 |
+
+El **% a tiempo de la tarjeta aguanta**: 44.7% → 48.6% y 98.4% → 99.2%. La historia
+"46% → 99%" no dependía de la calibración. Las dos filas "por defecto" reproducen la
+validación del martes (44.7% contra 46.3%, 98.4% contra 98.7%; son 100 de las 300 semillas).
+
+El objetivo compuesto sí se mueve mucho (0.948 → 1.4047), pero **no es una mejora del
+método**: el objetivo no está acotado a 0–1 y el término de throughput pesa, así que una
+planta más benigna produce más. **Los objetivos de dos configuraciones distintas no son
+comparables entre sí**; la tabla de eficiencia de la sección anterior se corrió entera con la
+config por defecto y sigue siendo la comparación válida.
+
+El default de `PlantConfig` **no se cambió**: es la vara con la que se midió todo lo anterior
+y cambiarla rompería la comparabilidad. La forma calibrada se usa explícitamente con
+`calibrated_plant_config()`. Adoptarla como default es una decisión pendiente, y de hacerse
+conviene anunciarla en un corte limpio (ver `docs/CALIBRATION.md`).

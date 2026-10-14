@@ -19,3 +19,6 @@ venv/
 
 # Resultados generados por los benchmarks
 bench/results/*.json
+
+# Datasets descargados (bench/download_ai4i.py). No se versionan.
+data/raw/

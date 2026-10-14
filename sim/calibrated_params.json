@@ -1,0 +1,33 @@
+{
+  "midpoint": 0.95,
+  "steepness": 18.0,
+  "base_per_min": [
+    0.0015,
+    0.0012,
+    0.0018
+  ],
+  "fitted_base_per_record": 0.0,
+  "log_likelihood": -457.0644,
+  "source": "AI4I 2020 Predictive Maintenance (UCI 601), https://archive.ics.uci.edu/dataset/601",
+  "downloaded": "2026-10-14",
+  "csv_sha256": "dc6630cd9b1f0f853922fad78a1b6436570d3f1ec863f1dd5c4340ac56bc8a8e",
+  "rows": 10000,
+  "wear_max_min": 253.0,
+  "wear_driven_modes": [
+    "TWF",
+    "OSF"
+  ],
+  "background_modes": [
+    "HDF",
+    "PWF",
+    "RNF"
+  ],
+  "wear_driven_events": 141,
+  "background_events": 226,
+  "level_calibrated": false,
+  "level_note": "AI4I no trae duración por registro: no hay conversión de probabilidad por registro a tasa por minuto con soporte en los datos, así que base_per_min conserva el valor del simulador y queda como supuesto de planta.",
+  "previous": {
+    "midpoint": 0.72,
+    "steepness": 14.0
+  }
+}
