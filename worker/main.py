@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import asyncio
 import math
 import statistics
@@ -189,11 +190,24 @@ def process_one(session: Session) -> bool:
 
 
 def main() -> None:
+    """Sin argumentos queda escuchando. Con --drain procesa lo encolado y sale.
+
+    `--drain` es para las sesiones con GPU y para los scripts: se encola primero y
+    después se drena, sin dejar un proceso vivo que haya que matar a mano.
+    """
+    parser = argparse.ArgumentParser(description="Worker de jobs de TwinVerdict")
+    parser.add_argument(
+        "--drain", action="store_true", help="procesa la cola y termina cuando se vacía"
+    )
+    args = parser.parse_args()
+
     factory = session_factory()
     while True:
         with factory() as session:
             worked = process_one(session)
         if not worked:
+            if args.drain:
+                return
             time.sleep(0.5)
 
 

@@ -1,5 +1,7 @@
 import json
 
+import pytest
+
 from eval.efficiency import (
     DEFINITIVE_NOTE,
     MOCK_NOTE,
@@ -8,6 +10,7 @@ from eval.efficiency import (
     build_report,
     curve,
     improvement_target,
+    loop_from_replay,
     loop_history,
     sims_to_fraction,
 )
@@ -91,7 +94,7 @@ def _config(**extra: object) -> dict:
     return {"N": 2, "K": 2, "R": 2, "profile": "smoke", "seed": 1, "scenario": "base", **extra}
 
 
-def _write_results(directory) -> None:
+def _write_results(directory, nofeedback_source: str = "mock", loop_source: str = "vllm") -> None:
     """Tres JSON mínimos del perfil smoke. Los dos métodos del LLM declaran fuentes
     distintas a propósito, para ver que cada uno se etiqueta con la suya."""
     policy = fixed_rule_policy().model_dump(mode="json", by_alias=True)
@@ -110,7 +113,7 @@ def _write_results(directory) -> None:
     (directory / "llm_nofeedback_smoke_seed1_20261014.json").write_text(
         json.dumps(
             {
-                "config": _config(llm_source="mock"),
+                "config": _config(llm_source=nofeedback_source),
                 "history": [{"batch": 0, "sims_acumuladas": 2, "best_so_far": 0.2}],
                 "best_objective": 0.5,
                 "fixed_objective": 0.2,
@@ -122,7 +125,7 @@ def _write_results(directory) -> None:
     (directory / "search_mock_20261014.json").write_text(
         json.dumps(
             {
-                "config": _config(llm_source="vllm"),
+                "config": _config(llm_source=loop_source),
                 "seed": 1,
                 "scenario": "base",
                 "fixed_objective": 0.2,
@@ -169,3 +172,52 @@ def test_a_json_without_the_field_is_undeclared_not_guessed(tmp_path) -> None:
     path.write_text(json.dumps(payload))
     report = build_report(tmp_path, SearchConfig.from_profile("smoke"), 1, "base", None, 1)
     assert _notes(report)["bucle con retroalimentación"] == UNKNOWN_NOTE
+
+
+def _report(tmp_path, required: str | None):
+    return build_report(
+        tmp_path,
+        SearchConfig.from_profile("smoke"),
+        1,
+        "base",
+        None,
+        1,
+        require_llm_source=required,
+    )
+
+
+def test_requiring_vllm_passes_when_both_declare_vllm(tmp_path) -> None:
+    _write_results(tmp_path, nofeedback_source="vllm", loop_source="vllm")
+    assert _notes(_report(tmp_path, "vllm"))["bucle con retroalimentación"] == "vLLM real"
+
+
+def test_requiring_vllm_aborts_when_a_run_came_from_the_mock(tmp_path) -> None:
+    """Es el guardarraíl de la sesión GPU 2: con el túnel caído, abortar y no medir."""
+    _write_results(tmp_path, nofeedback_source="mock", loop_source="vllm")
+    with pytest.raises(SystemExit) as excinfo:
+        _report(tmp_path, "vllm")
+    assert "llm_source='vllm'" in str(excinfo.value)
+    assert "LLM sin retroalimentación" in str(excinfo.value)
+
+
+def test_without_the_requirement_any_source_passes(tmp_path) -> None:
+    _write_results(tmp_path, nofeedback_source="mock", loop_source="mock")
+    assert len(_report(tmp_path, None).methods) == 4
+
+
+def test_loop_from_replay_feeds_the_curve() -> None:
+    """El bucle de la sesión GPU 2 llega como replay congelado, no como JSON de search.loop."""
+    replay = {
+        "config": {"K": 180, "seed": 1, "scenario": "base", "profile": "default"},
+        "run": {"total_simulations": 70000, "best_objective": 0.9},
+        "fixed_metrics": {"train": {"objective": 0.2}},
+        "best_policy": {"version": 1},
+        "rounds": [
+            {"sims_spent": 360, "objectives": [0.5, 0.4]},
+            {"sims_spent": 180, "objectives": [0.9]},
+        ],
+    }
+    adapted = loop_from_replay(replay)
+    assert loop_history(adapted)[0] == {"sims_acumuladas": 180, "best_so_far": 0.2}
+    assert loop_history(adapted)[-1] == {"sims_acumuladas": 720, "best_so_far": 0.9}
+    assert adapted["simulations_total"] == 70000

@@ -166,6 +166,24 @@ class Method:
     holdout: Holdout | None = None
 
 
+def check_llm_source(methods: list[Method], required: str | None) -> None:
+    """Aborta si un método que depende del LLM no declara la fuente esperada.
+
+    Es el guardarraíl de la sesión GPU 2: con el túnel caído las corridas saldrían contra
+    el mock, la tabla se vería igual y el error pasaría desapercibido.
+    """
+    if required is None:
+        return
+    wrong = {
+        item.name: item.source for item in methods if item.llm_dependent and item.source != required
+    }
+    if wrong:
+        raise SystemExit(
+            f"se esperaba llm_source={required!r} en los métodos que dependen del LLM y "
+            f"estos declaran otra cosa: {wrong}"
+        )
+
+
 @dataclass(slots=True)
 class Report:
     profile: str
@@ -184,6 +202,34 @@ def _latest(directory: Path, pattern: str) -> Path:
     if not matches:
         raise SystemExit(f"no hay archivos {pattern} en {directory}")
     return matches[-1]
+
+
+def loop_from_replay(replay: dict) -> dict:
+    """Adapta un replay congelado al formato del JSON de `search.loop`.
+
+    Hace falta porque en la sesión GPU 2 el bucle corre por el worker (que persiste
+    holdout y estrés en Postgres) y no escribe el JSON de `search.loop`. La adaptación
+    vive aquí para que `eval/` no tenga que importar la capa de base de datos.
+    """
+    config = replay.get("config") or {}
+    rounds = [
+        {
+            "sims_spent": int(item.get("sims_spent") or 0),
+            "evaluated": [{"objective": float(value)} for value in item.get("objectives") or []],
+        }
+        for item in replay.get("rounds") or []
+    ]
+    return {
+        "config": config,
+        "seed": config.get("seed"),
+        "scenario": config.get("scenario"),
+        "simulations_total": replay["run"]["total_simulations"],
+        "best_objective": replay["run"]["best_objective"],
+        "fixed_objective": (replay.get("fixed_metrics", {}).get("train") or {}).get("objective"),
+        "best_policy": replay.get("best_policy"),
+        "policies": [{"n_seeds": config.get("K")}],
+        "rounds": rounds,
+    }
 
 
 def _load(path: Path) -> dict:
@@ -227,6 +273,7 @@ def build_report(
     llm_source: str | None,
     workers: int,
     loop_json: Path | None = None,
+    require_llm_source: str | None = None,
 ) -> Report:
     stamp = f"{config.profile}_seed{seed}"
     optuna_path = _latest(directory, f"optuna_{stamp}_*.json")
@@ -235,6 +282,8 @@ def build_report(
     optuna = _load(optuna_path)
     nofeedback = _load(nofeedback_path)
     loop = _load(loop_path)
+    if "job" in loop and "run" in loop:  # es un replay congelado, no el JSON de search.loop
+        loop = loop_from_replay(loop)
 
     configs = {"optuna": optuna["config"], "llm_nofeedback": nofeedback["config"]}
     if "config" in loop:
@@ -314,6 +363,7 @@ def build_report(
         ),
     ]
 
+    check_llm_source(methods, require_llm_source)
     best_global = max(method.best_train for method in methods)
     target = improvement_target(fixed, best_global)
     for method in methods:
@@ -405,6 +455,12 @@ def main() -> None:
     parser.add_argument(
         "--loop-json", type=Path, default=None, help="JSON de la búsqueda con bucle"
     )
+    parser.add_argument(
+        "--require-llm-source",
+        default=None,
+        choices=("mock", "vllm"),
+        help="aborta si un método que depende del LLM no declara esta fuente",
+    )
     args = parser.parse_args()
 
     config = SearchConfig.from_profile(args.profile)
@@ -416,6 +472,7 @@ def main() -> None:
         args.llm_source,
         Settings().SIM_WORKERS if args.workers is None else args.workers,
         loop_json=args.loop_json,
+        require_llm_source=args.require_llm_source,
     )
     path = args.results_dir / f"efficiency_{datetime.now(UTC).strftime('%Y%m%d')}.json"
     path.parent.mkdir(parents=True, exist_ok=True)

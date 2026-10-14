@@ -1,6 +1,6 @@
-"""Encola un job. Uso: python -m worker.enqueue baseline|search."""
+"""Encola un job. Uso: python -m worker.enqueue baseline|search [--profile --seed --holdout]."""
 
-import sys
+import argparse
 
 from db.models import Job
 from db.session import session_factory
@@ -32,9 +32,26 @@ def enqueue(kind: str, params: dict | None = None) -> str:
 
 
 def main() -> None:
-    if len(sys.argv) != 2:
-        raise SystemExit("uso: python -m worker.enqueue baseline|search")
-    print(enqueue(sys.argv[1]))
+    parser = argparse.ArgumentParser(description="Encola un job")
+    parser.add_argument("kind", choices=KINDS)
+    parser.add_argument("--profile", default=None)
+    parser.add_argument("--seed", type=int, default=None)
+    parser.add_argument("--scenario", default=None)
+    parser.add_argument("--holdout", type=int, default=None, help="semillas de holdout y estrés")
+    args = parser.parse_args()
+
+    params = {
+        key: value
+        for key, value in (
+            ("profile", args.profile),
+            ("seed", args.seed),
+            ("scenario", args.scenario),
+            ("holdout", args.holdout),
+        )
+        if value is not None
+    }
+    # Sin banderas se mantiene el default de siempre, para no cambiar el comportamiento.
+    print(enqueue(args.kind, params or None))
 
 
 if __name__ == "__main__":
