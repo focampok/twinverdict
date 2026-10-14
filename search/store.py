@@ -133,10 +133,32 @@ def latest_done(session: Session) -> SearchRun | None:
     ).first()
 
 
+def _format_seeds(seeds: object) -> str:
+    if not isinstance(seeds, list) or not seeds:
+        return "-"
+    if not all(isinstance(seed, int) for seed in seeds):
+        return "-"
+    start = seeds[0]
+    end = seeds[-1]
+    if seeds == list(range(start, end + 1)):
+        return f"{start}-{end}"
+    return ",".join(str(seed) for seed in seeds)
+
+
 def format_last(run: SearchRun | None) -> str:
     if run is None:
         return "no hay corridas"
+    cfg = run.config or {}
+    seconds = cfg.get("seconds_per_sim", "-")
+    if isinstance(seconds, float):
+        seconds = f"{seconds:.6f}"
     return (
         f"best_objective={run.best_objective} total_simulations={run.total_simulations} "
-        f"job_id={run.job_id}"
+        f"job_id={run.job_id} "
+        f"N={cfg.get('N', '-')} K={cfg.get('K', '-')} R={cfg.get('R', '-')} "
+        f"sim_workers={cfg.get('sim_workers', '-')} model={cfg.get('model', '-')} "
+        f"profile={cfg.get('profile', '-')} "
+        f"train_seeds={_format_seeds(cfg.get('train_seeds'))} "
+        f"holdout_seeds={_format_seeds(cfg.get('holdout_seeds'))} "
+        f"git={cfg.get('git_commit', '-')} s/sim={seconds}"
     )

@@ -16,8 +16,9 @@ from db.models import Job, MetricRow, PolicyRow, RunEvent, utcnow
 from db.session import session_factory
 from llm.client import LLMClient
 from policy.schema import fixed_rule_policy
-from search.config import SearchConfig
+from search.config import PROFILES, SearchConfig
 from search.loop import run_search
+from search.repro import build_search_config
 from search.store import persist_search
 from sim.objective import composite_objective, load_objective_weights
 from sim.runner import Scenario, simulate
@@ -88,7 +89,11 @@ def _run_baseline(session: Session, job_id: uuid.UUID) -> None:
 
 
 def _search_config(params: dict) -> SearchConfig:
-    config = SearchConfig()
+    name = params.get("profile")
+    if isinstance(name, str) and name in PROFILES:
+        config = SearchConfig.from_profile(name)
+    else:
+        config = SearchConfig()
     updates = {
         key: int(params[key])
         for key in ("N", "K", "R", "TOP_K")
@@ -125,20 +130,17 @@ def _run_search(session: Session, job_id: uuid.UUID) -> None:
             await client.aclose()
 
     result = asyncio.run(_go())
+    repro = build_search_config(config, result, model)
     persist_search(
         session,
         job_id,
         result,
         model=model,
-        config={
-            "N": config.N,
-            "K": config.K,
-            "R": config.R,
-            "model": model,
-            "seed": seed,
-            "scenario": scenario,
-        },
+        config=repro,
     )
+    stored = session.get(Job, job_id)
+    assert stored is not None
+    stored.params = {**dict(stored.params or {}), **repro}
 
 
 def process_one(session: Session) -> bool:

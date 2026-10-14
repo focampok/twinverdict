@@ -15,7 +15,14 @@ def enqueue(kind: str, params: dict | None = None) -> str:
     stored = {} if params is None else dict(params)
     if kind == "search" and params is None:
         config = SearchConfig()
-        stored = {"seed": 1, "scenario": "base", "N": config.N, "K": config.K, "R": config.R}
+        stored = {
+            "seed": 1,
+            "scenario": "base",
+            "profile": config.profile,
+            "N": config.N,
+            "K": config.K,
+            "R": config.R,
+        }
     factory = session_factory()
     with factory() as session:
         job = Job(kind=kind, status="queued", params=stored)

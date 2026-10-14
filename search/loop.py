@@ -7,6 +7,7 @@ import asyncio
 import json
 import math
 import statistics
+import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -58,6 +59,10 @@ class SearchResult:
     holdout: EvaluatedPolicy | None
     seed: int
     scenario: str
+    train_seeds: list[int]
+    holdout_seeds: list[int]
+    sim_workers: int
+    seconds_per_sim: float
 
 
 def _mean_kpis(rows: list[dict[str, float]]) -> dict[str, float]:
@@ -161,7 +166,16 @@ async def run_search(
     """política_0 es la regla fija. Cada ronda propone N, simula las válidas en K semillas."""
     pool_workers = Settings().SIM_WORKERS if workers is None else workers
     train_seeds = list(range(rng_seed, rng_seed + config.K))
-    fixed = evaluate_policy(fixed_rule_policy(), train_seeds, pool_workers, scenario, "fixed", 0)
+    sim_seconds = 0.0
+
+    def _timed(policy: Policy, seeds: list[int], source: str, round_index: int) -> EvaluatedPolicy:
+        nonlocal sim_seconds
+        started = time.perf_counter()
+        scored = evaluate_policy(policy, seeds, pool_workers, scenario, source, round_index)
+        sim_seconds += time.perf_counter() - started
+        return scored
+
+    fixed = _timed(fixed_rule_policy(), train_seeds, "fixed", 0)
     pool = [fixed]
     policies = [fixed]
     rounds: list[RoundResult] = []
@@ -172,9 +186,7 @@ async def run_search(
         proposed = await llm_client.propose(prompt, config.N, rng_seed + round_index * 10_000)
         evaluated: list[EvaluatedPolicy] = []
         for policy in proposed.valid:
-            evaluated.append(
-                evaluate_policy(policy, train_seeds, pool_workers, scenario, "llm", round_index)
-            )
+            evaluated.append(_timed(policy, train_seeds, "llm", round_index))
         sims += len(evaluated) * config.K
         pool.extend(evaluated)
         policies.extend(evaluated)
@@ -197,9 +209,10 @@ async def run_search(
         )
     best = sorted(pool, key=_rank_key)[0]
     holdout = None
+    hold_seeds: list[int] = []
     if holdout_seeds > 0:
         hold_seeds = list(range(1_000_000 + rng_seed, 1_000_000 + rng_seed + holdout_seeds))
-        holdout = evaluate_policy(best.policy, hold_seeds, pool_workers, scenario, best.source, -1)
+        holdout = _timed(best.policy, hold_seeds, best.source, -1)
         sims += holdout_seeds
     return SearchResult(
         policies=policies,
@@ -212,6 +225,10 @@ async def run_search(
         holdout=holdout,
         seed=rng_seed,
         scenario=scenario,
+        train_seeds=train_seeds,
+        holdout_seeds=hold_seeds,
+        sim_workers=pool_workers,
+        seconds_per_sim=sim_seconds / sims if sims else 0.0,
     )
 
 
