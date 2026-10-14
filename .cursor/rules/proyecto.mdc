@@ -43,15 +43,16 @@ sim/ policy/ search/ llm/ eval/ baselines/ guard/ api/ ui/ db/ worker/ bench/ in
   Hoy se usa el mock; cambiar a vLLM real debe requerir solo cambiar LLM_BASE_URL y LLM_MODEL.
 - Funciones pequeñas y puras donde se pueda; simulate(policy, seed) no toca red, disco ni BD.
 
-## Alcance actual (martes 13)
-Primera sesión de GPU: MI300X a $1.99/h (escenario A, ~50 h; destruir al terminar), imagen
-DigitalOcean vLLM 0.27.1 1-Click, contenedor `rocm`, Qwen/Qwen3-8B lanzado con docker exec y
---api-key. Docker publica el puerto 8000 en 0.0.0.0, así que la api-key es obligatoria; el
-acceso desde la laptop es el túnel SSH. Smoke JSON, benchmarks y N/K/R. Tarde: bucle de
-búsqueda (proponer, validar, simular, guardar) primero contra el mock; hito una corrida
-completa en Postgres.
-No implementar: Optuna, UI completa, Railway en producción, SSE, premio de Google, docker compose.
-No crear ni destruir la instancia desde el repo.
+## Alcance actual (miércoles 14)
+Líneas base con el mismo presupuesto de simulaciones que el bucle (perfil default:
+N=48, K=180, R=8, 69_300 sims de entrenamiento): regla fija (ya existe), Optuna TPE
+(numéricos + regla de despacho categórica) y LLM sin retroalimentación. Curva del
+mejor objetivo contra simulaciones y sims al 90% del mejor. Calibración desgaste→riesgo
+con AI4I 2020 (o C-MAPSS), con límites declarados. Replay: congelar una corrida y un
+snapshot JSON para la tarjeta de operador (% a tiempo 46% → 99%).
+GPU opcional al final: worker nativo con SIM_WORKERS=18, 8B vs 32B por holdout, destruir.
+No implementar: UI HTMX, aprobación en pantalla, Railway en producción, SSE,
+premio de Google, docker compose, fine-tuning, código generado por el LLM.
 
 ## Antes de decir "listo"
 Ejecuta `uv run ruff check .`, `uv run ruff format --check .` y `uv run pytest -q`.
