@@ -49,3 +49,41 @@ donde se crea y se destruye.
     reales. Commit. No inventar cifras.
 11. Parar vLLM. **Destruir** la instancia en la consola (no solo apagarla).
     Anotar hora de fin y costo (`horas × 1.99`).
+
+## Corridas finales: worker nativo en la MI300X
+
+La instancia del martes 13 ya se destruyó. Esto es para la sesión siguiente.
+La imagen 1-Click trae 20 vCPU. vLLM sigue en el contenedor `rocm`. El worker y
+la simulación corren **nativos** en el host, con `SIM_WORKERS=18` (dos núcleos
+quedan para el sistema y para vLLM). `infra/gpu/worker.sh` calcula `nproc - 2`,
+que en esta máquina es 18.
+
+1. En la consola, crear la instancia y anotar IP, precio y hora de inicio. No
+   crearla desde el repo.
+2. En la instancia, `infra/gpu/up.sh` (pide `REPO_URL`). Clona en
+   `~/twinverdict`, instala `uv` y hace `uv sync`. El código no va dentro de
+   `rocm`.
+3. Postgres, una de las dos rutas:
+   - **Railway.** `DATABASE_URL` es la URL pública del servicio (`DATABASE_PUBLIC_URL`),
+     con `sslmode=require`. `config.py` pasa `postgres://` y `postgresql://` a
+     `postgresql+psycopg://` y conserva el `sslmode`. La red interna de Railway
+     no se alcanza desde la instancia.
+   - **Local, y sync al terminar.** Postgres nativo en la instancia, la búsqueda
+     escribe ahí, y al cerrar se sincroniza hacia Railway (`pg_dump` de `jobs`,
+     `policies`, `metrics`, `runs` y `search_runs`, y restore en el servicio).
+     Sirve si la URL pública no conecta.
+4. Copiar `infra/gpu/.env.gpu` desde `.env.gpu.example` (no se commitea).
+   `LLM_BASE_URL=http://127.0.0.1:8000/v1`. `LLM_API_KEY` es la misma
+   `--api-key` de vLLM. No imprimirla ni pegarla en el repo.
+5. Medir la simulación sostenida **antes** de la búsqueda larga:
+   `infra/gpu/gpu.sh bench-sim`. Corre en la instancia
+   `bench.sim_speed --seeds 300 --workers 18 --repeat 6`. El s/sim que queda
+   en el JSON es la media de las tandas 2 a 6. Con eso se decide si cabe el
+   perfil `final` (K=300) o se queda el `default` (K=180).
+6. Arrancar el worker: `./infra/gpu/worker.sh`, o a mano
+   `SIM_WORKERS=18 uv run python -m worker.main` desde `~/twinverdict`.
+   Encolar desde la laptop o desde la instancia. El perfil `default` es la
+   búsqueda de unos 25 min en la laptop; en la MI300X el reloj lo da el paso 5.
+7. Al terminar: `gpu.sh stop`, destruir la instancia en la consola, anotar
+   hora de fin y costo. El puerto 8000 sigue publicado en `0.0.0.0`: la
+   api-key no se quita.
