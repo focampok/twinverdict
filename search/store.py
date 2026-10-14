@@ -70,22 +70,35 @@ def persist_search(
         row.status = "superseded"
     ids: list[uuid.UUID] = []
     best_policy_id = None
+    fixed_policy_id = None
     for item in result.policies:
         stored_id = _insert_policy(session, job_id, item, "train")
         ids.append(stored_id)
+        if item.source == "fixed" and fixed_policy_id is None:
+            fixed_policy_id = stored_id
         if item.policy is result.best_policy and item.objective == result.best_objective:
             best_policy_id = stored_id
-    if result.holdout is not None and best_policy_id is not None:
+    # Holdout y estrés de la regla fija y de la mejor política. Mismas semillas que el
+    # holdout de siempre; en estrés cambia el escenario (+30% fallas, demanda x1.5). La
+    # tarjeta de operador compara las dos políticas, así que las dos van persistidas.
+    for policy_id, seed_set, scored in (
+        (fixed_policy_id, "holdout", result.fixed_holdout),
+        (fixed_policy_id, "stress", result.fixed_stress),
+        (best_policy_id, "holdout", result.holdout),
+        (best_policy_id, "stress", result.stress),
+    ):
+        if scored is None or policy_id is None:
+            continue
         session.add(
             MetricRow(
-                policy_id=best_policy_id,
-                seed_set="holdout",
-                n_seeds=result.holdout.n_seeds,
-                objective=result.holdout.objective,
-                kpis=result.holdout.kpis,
-                ci_low=result.holdout.ci_low,
-                ci_high=result.holdout.ci_high,
-                sims_spent=result.holdout.n_seeds,
+                policy_id=policy_id,
+                seed_set=seed_set,
+                n_seeds=scored.n_seeds,
+                objective=scored.objective,
+                kpis=scored.kpis,
+                ci_low=scored.ci_low,
+                ci_high=scored.ci_high,
+                sims_spent=scored.n_seeds,
             )
         )
     for item in result.rounds:

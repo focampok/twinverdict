@@ -64,6 +64,14 @@ class SearchResult:
     holdout_seeds: list[int]
     sim_workers: int
     seconds_per_sim: float
+    # Holdout y estrés (+30% fallas, demanda x1.5) de la mejor política y de la regla fija,
+    # en las mismas semillas y fuera del presupuesto de entrenamiento. La tarjeta de operador
+    # compara las dos políticas, así que las dos tienen que quedar persistidas. Con defaults
+    # para que las líneas base puedan construir un SearchResult sin ellas.
+    stress: EvaluatedPolicy | None = None
+    stress_objective: float | None = None
+    fixed_holdout: EvaluatedPolicy | None = None
+    fixed_stress: EvaluatedPolicy | None = None
 
 
 def _mean_kpis(rows: list[dict[str, float]]) -> dict[str, float]:
@@ -109,6 +117,19 @@ def evaluate_policy(
     )
 
 
+def _extra_payload(item: EvaluatedPolicy | None) -> dict | None:
+    """Resumen de una evaluación fuera del entrenamiento: holdout o estrés."""
+    if item is None:
+        return None
+    return {
+        "objective": item.objective,
+        "kpis": item.kpis,
+        "n_seeds": item.n_seeds,
+        "ci_low": item.ci_low,
+        "ci_high": item.ci_high,
+    }
+
+
 def result_payload(result: SearchResult, model: str) -> dict:
     def _eval(item: EvaluatedPolicy) -> dict:
         return {
@@ -130,15 +151,11 @@ def result_payload(result: SearchResult, model: str) -> dict:
         "best_objective": result.best_objective,
         "fixed_objective": result.fixed_objective,
         "holdout_objective": result.holdout_objective,
-        "holdout": None
-        if result.holdout is None
-        else {
-            "objective": result.holdout.objective,
-            "kpis": result.holdout.kpis,
-            "n_seeds": result.holdout.n_seeds,
-            "ci_low": result.holdout.ci_low,
-            "ci_high": result.holdout.ci_high,
-        },
+        "holdout": _extra_payload(result.holdout),
+        "stress_objective": result.stress_objective,
+        "stress": _extra_payload(result.stress),
+        "fixed_holdout": _extra_payload(result.fixed_holdout),
+        "fixed_stress": _extra_payload(result.fixed_stress),
         "best_policy": result.best_policy.model_dump(mode="json", by_alias=True),
         "policies": [_eval(item) for item in result.policies],
         "rounds": [
@@ -169,10 +186,17 @@ async def run_search(
     train_seeds = list(range(rng_seed, rng_seed + config.K))
     sim_seconds = 0.0
 
-    def _timed(policy: Policy, seeds: list[int], source: str, round_index: int) -> EvaluatedPolicy:
+    def _timed(
+        policy: Policy,
+        seeds: list[int],
+        source: str,
+        round_index: int,
+        stressed: bool = False,
+    ) -> EvaluatedPolicy:
         nonlocal sim_seconds
         started = time.perf_counter()
-        scored = evaluate_policy(policy, seeds, pool_workers, scenario, source, round_index)
+        named = "stress" if stressed else scenario
+        scored = evaluate_policy(policy, seeds, pool_workers, named, source, round_index)
         sim_seconds += time.perf_counter() - started
         return scored
 
@@ -210,11 +234,19 @@ async def run_search(
         )
     best = sorted(pool, key=_rank_key)[0]
     holdout = None
+    stress = None
+    fixed_holdout = None
+    fixed_stress = None
     hold_seeds: list[int] = []
     if holdout_seeds > 0:
         hold_seeds = list(range(1_000_000 + rng_seed, 1_000_000 + rng_seed + holdout_seeds))
         holdout = _timed(best.policy, hold_seeds, best.source, -1)
-        sims += holdout_seeds
+        stress = _timed(best.policy, hold_seeds, best.source, -2, stressed=True)
+        fixed_holdout = _timed(fixed.policy, hold_seeds, "fixed", -1)
+        fixed_stress = _timed(fixed.policy, hold_seeds, "fixed", -2, stressed=True)
+        # Las cuatro evaluaciones quedan fuera del presupuesto de entrenamiento y se suman a
+        # simulations_total, igual que el holdout de siempre (misma convención).
+        sims += holdout_seeds * 4
     return SearchResult(
         policies=policies,
         rounds=rounds,
@@ -230,6 +262,10 @@ async def run_search(
         holdout_seeds=hold_seeds,
         sim_workers=pool_workers,
         seconds_per_sim=sim_seconds / sims if sims else 0.0,
+        stress=stress,
+        stress_objective=None if stress is None else stress.objective,
+        fixed_holdout=fixed_holdout,
+        fixed_stress=fixed_stress,
     )
 
 
