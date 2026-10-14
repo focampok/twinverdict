@@ -1,10 +1,18 @@
+import json
+
 from eval.efficiency import (
+    DEFINITIVE_NOTE,
+    MOCK_NOTE,
+    UNKNOWN_NOTE,
     bootstrap_ci,
+    build_report,
     curve,
     improvement_target,
     loop_history,
     sims_to_fraction,
 )
+from policy.schema import fixed_rule_policy
+from search.config import SearchConfig
 
 
 def test_curve_is_sorted_and_non_decreasing() -> None:
@@ -77,3 +85,87 @@ def test_bootstrap_ci_brackets_the_mean() -> None:
     values = [0.1 * index for index in range(20)]
     low, high = bootstrap_ci(values)
     assert low < sum(values) / len(values) < high
+
+
+def _config(**extra: object) -> dict:
+    return {"N": 2, "K": 2, "R": 2, "profile": "smoke", "seed": 1, "scenario": "base", **extra}
+
+
+def _write_results(directory) -> None:
+    """Tres JSON mínimos del perfil smoke. Los dos métodos del LLM declaran fuentes
+    distintas a propósito, para ver que cada uno se etiqueta con la suya."""
+    policy = fixed_rule_policy().model_dump(mode="json", by_alias=True)
+    (directory / "optuna_smoke_seed1_20261014.json").write_text(
+        json.dumps(
+            {
+                "config": _config(llm_source="none"),
+                "history": [{"trial": 0, "sims_acumuladas": 2, "best_so_far": 0.2}],
+                "best_objective": 0.6,
+                "fixed_objective": 0.2,
+                "simulations_total": 2,
+                "best_policy": policy,
+            }
+        )
+    )
+    (directory / "llm_nofeedback_smoke_seed1_20261014.json").write_text(
+        json.dumps(
+            {
+                "config": _config(llm_source="mock"),
+                "history": [{"batch": 0, "sims_acumuladas": 2, "best_so_far": 0.2}],
+                "best_objective": 0.5,
+                "fixed_objective": 0.2,
+                "simulations_total": 2,
+                "best_policy": policy,
+            }
+        )
+    )
+    (directory / "search_mock_20261014.json").write_text(
+        json.dumps(
+            {
+                "config": _config(llm_source="vllm"),
+                "seed": 1,
+                "scenario": "base",
+                "fixed_objective": 0.2,
+                "best_objective": 0.7,
+                "simulations_total": 4,
+                "best_policy": policy,
+                "policies": [{"n_seeds": 2}],
+                "rounds": [{"sims_spent": 2, "evaluated": [{"objective": 0.7}]}],
+            }
+        )
+    )
+
+
+def _notes(report) -> dict[str, str]:
+    return {method.name: method.note for method in report.methods}
+
+
+def test_the_source_is_read_from_each_json(tmp_path) -> None:
+    _write_results(tmp_path)
+    # El perfil smoke tiene HOLDOUT_SEEDS=0, así que esto no simula nada: solo lee JSON.
+    report = build_report(tmp_path, SearchConfig.from_profile("smoke"), 1, "base", None, 1)
+    notes = _notes(report)
+    assert notes["regla fija"] == DEFINITIVE_NOTE
+    assert notes["Optuna TPE"] == DEFINITIVE_NOTE
+    assert notes["LLM sin retroalimentación"] == MOCK_NOTE
+    assert notes["bucle con retroalimentación"] == "vLLM real"
+    assert report.llm_source == "derivado del JSON"
+
+
+def test_the_flag_overrides_the_json(tmp_path) -> None:
+    _write_results(tmp_path)
+    report = build_report(tmp_path, SearchConfig.from_profile("smoke"), 1, "base", "mock", 1)
+    notes = _notes(report)
+    assert notes["bucle con retroalimentación"] == MOCK_NOTE
+    assert notes["LLM sin retroalimentación"] == MOCK_NOTE
+    assert report.llm_source == "mock"
+
+
+def test_a_json_without_the_field_is_undeclared_not_guessed(tmp_path) -> None:
+    _write_results(tmp_path)
+    path = tmp_path / "search_mock_20261014.json"
+    payload = json.loads(path.read_text())
+    del payload["config"]["llm_source"]
+    path.write_text(json.dumps(payload))
+    report = build_report(tmp_path, SearchConfig.from_profile("smoke"), 1, "base", None, 1)
+    assert _notes(report)["bucle con retroalimentación"] == UNKNOWN_NOTE

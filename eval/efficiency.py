@@ -20,9 +20,12 @@ punto único en la regla fija.
 
 Contra el mock, el bucle y el LLM sin retroalimentación NO son una medida del LLM: el mock
 deriva cada política de la semilla y no lee el prompt. Optuna y la regla fija no pasan por
-el LLM, así que sí son definitivos. Para repetir esto contra vLLM no hace falta tocar el
-código: se corre `uv run python -m eval.efficiency --results-dir bench/results
---profile default --seed 1 --llm-source vllm` sobre los JSON de esa sesión.
+el LLM, así que sí son definitivos.
+
+De dónde salieron las políticas se lee de `config.llm_source` en el JSON de cada corrida,
+que `search/repro.py` deriva del endpoint (`LLM_BASE_URL`) y del puerto del mock. La bandera
+`--llm-source` es solo un override para JSON viejos; contra vLLM no hace falta: basta con
+correr sobre los JSON de esa sesión.
 """
 
 from __future__ import annotations
@@ -48,6 +51,20 @@ DEFAULT_FRACTION = 0.9
 
 MOCK_NOTE = "mock, no es medida del LLM"
 DEFINITIVE_NOTE = "definitivo"
+UNKNOWN_NOTE = "origen sin declarar"
+
+
+def llm_note(source: str | None) -> str:
+    """Etiqueta de la tabla para un método que depende del LLM.
+
+    La fuente sale del JSON de la corrida (`config.llm_source`, ver search/repro.py).
+    Un JSON viejo, sin ese campo, se marca como sin declarar en vez de adivinar.
+    """
+    if source == "mock":
+        return MOCK_NOTE
+    if source == "vllm":
+        return "vLLM real"
+    return UNKNOWN_NOTE
 
 
 def curve(history: list[dict]) -> list[tuple[int, float]]:
@@ -143,6 +160,7 @@ class Method:
     best_train: float
     points: list[tuple[int, float]]
     llm_dependent: bool
+    source: str
     note: str
     sims_at_target: int | None = None
     holdout: Holdout | None = None
@@ -206,7 +224,7 @@ def build_report(
     config: SearchConfig,
     seed: int,
     scenario: str,
-    llm_source: str,
+    llm_source: str | None,
     workers: int,
     loop_json: Path | None = None,
 ) -> Report:
@@ -218,13 +236,13 @@ def build_report(
     nofeedback = _load(nofeedback_path)
     loop = _load(loop_path)
 
-    k = _check_same_budget(
-        {"optuna": optuna["config"], "llm_nofeedback": nofeedback["config"]},
-        config.profile,
-        seed,
-    )
-    # El JSON del bucle no guarda N/K/R: se derivan de lo persistido y se comparan.
-    loop_k = int(loop["policies"][0]["n_seeds"])
+    configs = {"optuna": optuna["config"], "llm_nofeedback": nofeedback["config"]}
+    if "config" in loop:
+        configs["bucle"] = loop["config"]
+    k = _check_same_budget(configs, config.profile, seed)
+    # Los JSON del bucle escritos antes de que el payload llevara su bloque de
+    # configuración no traen N/K/R: se derivan de lo persistido y se comparan.
+    loop_k = k if "config" in loop else int(loop["policies"][0]["n_seeds"])
     if loop_k != k:
         raise SystemExit(
             f"el JSON del bucle ({loop_path.name}) usó K={loop_k} y las líneas base K={k}; "
@@ -235,7 +253,7 @@ def build_report(
     scenarios = {
         "optuna": optuna["config"].get("scenario"),
         "llm_nofeedback": nofeedback["config"].get("scenario"),
-        "bucle": loop.get("scenario"),
+        "bucle": loop.get("config", {}).get("scenario", loop.get("scenario")),
     }
     wrong = {name: value for name, value in scenarios.items() if value != scenario}
     if wrong:
@@ -247,7 +265,16 @@ def build_report(
         print(f"aviso: fixed_objective distinto entre corridas: {sorted(fixed_values)}")
     fixed_policy = fixed_rule_policy()
 
-    llm_note = MOCK_NOTE if llm_source == "mock" else "vLLM real"
+    # La fuente sale del JSON. La bandera solo pisa ese valor.
+    sources = {
+        "llm_nofeedback": llm_source or nofeedback["config"].get("llm_source"),
+        "bucle": llm_source or loop.get("config", {}).get("llm_source"),
+    }
+    if llm_source is None and any(llm_note(value) == UNKNOWN_NOTE for value in sources.values()):
+        print(
+            "aviso: algún JSON no declara config.llm_source (corrida anterior a ese campo). "
+            "Pásalo a mano con --llm-source mock|vllm si lo sabes."
+        )
     methods = [
         Method(
             name="regla fija",
@@ -255,6 +282,7 @@ def build_report(
             best_train=fixed,
             points=[(k, fixed)],  # punto único; se extiende horizontal al presupuesto
             llm_dependent=False,
+            source="none",
             note=DEFINITIVE_NOTE,
         ),
         Method(
@@ -263,6 +291,7 @@ def build_report(
             best_train=float(optuna["best_objective"]),
             points=curve(optuna["history"]),
             llm_dependent=False,
+            source=str(optuna["config"].get("llm_source", "none")),
             note=DEFINITIVE_NOTE,
         ),
         Method(
@@ -271,7 +300,8 @@ def build_report(
             best_train=float(nofeedback["best_objective"]),
             points=curve(nofeedback["history"]),
             llm_dependent=True,
-            note=llm_note,
+            source=str(sources["llm_nofeedback"]),
+            note=llm_note(sources["llm_nofeedback"]),
         ),
         Method(
             name="bucle con retroalimentación",
@@ -279,7 +309,8 @@ def build_report(
             best_train=float(loop["best_objective"]),
             points=curve(loop_history(loop)),
             llm_dependent=True,
-            note=llm_note,
+            source=str(sources["bucle"]),
+            note=llm_note(sources["bucle"]),
         ),
     ]
 
@@ -303,7 +334,7 @@ def build_report(
         profile=config.profile,
         seed=seed,
         scenario=scenario,
-        llm_source=llm_source,
+        llm_source=llm_source or "derivado del JSON",
         k=k,
         target=target,
         best_global=best_global,
@@ -366,9 +397,9 @@ def main() -> None:
     parser.add_argument("--scenario", default="base", choices=("base", "stress"))
     parser.add_argument(
         "--llm-source",
-        default="mock",
+        default=None,
         choices=("mock", "vllm"),
-        help="de dónde salieron las políticas del LLM: mock o vLLM real",
+        help="override; por defecto la fuente se lee de config.llm_source de cada JSON",
     )
     parser.add_argument("--workers", type=int, default=None)
     parser.add_argument(
@@ -376,11 +407,6 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    if args.llm_source == "mock":
-        print(
-            "aviso: --llm-source mock. El bucle y el LLM sin retroalimentación se marcan "
-            "como no-medida del LLM; para la sesión GPU 2 usa --llm-source vllm."
-        )
     config = SearchConfig.from_profile(args.profile)
     report = build_report(
         args.results_dir,

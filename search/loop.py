@@ -17,6 +17,7 @@ from llm.client import LLMClient
 from policy.schema import Policy, fixed_rule_policy
 from search.config import SearchConfig
 from search.prompts import build_search_prompt
+from search.repro import build_search_config
 from sim.objective import composite_objective, load_objective_weights
 from sim.runner import Scenario, simulate_many
 
@@ -275,6 +276,9 @@ def main() -> None:
     path = Path("bench/results") / f"search_mock_{stamp}.json"
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = result_payload(result, Settings().LLM_MODEL)
+    # El JSON lleva su propio bloque de configuración: N/K/R, perfil, commit y de dónde
+    # salieron las políticas. Así la curva de eficiencia lo compara sin banderas a mano.
+    payload["config"] = build_search_config(config, result, Settings().LLM_MODEL)
     path.write_text(json.dumps(payload, indent=2) + "\n")
     print(
         f"mejor={result.best_objective:.4f} fija={result.fixed_objective:.4f} "
