@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 from typing import Protocol
 
+from policy.schema import fixed_rule_policy
+
 
 class _Scored(Protocol):
     objective: float
@@ -43,3 +45,31 @@ def build_search_prompt(scenario: str, top: list[_Scored]) -> str:
         )
     lines.append("Propón una política distinta que mejore el objetivo.")
     return "\n".join(lines)
+
+
+def build_oneshot_prompt(scenario: str) -> str:
+    """Prompt fijo para la línea base sin retroalimentación (Prompt 16).
+
+    Lleva el escenario, la regla fija como referencia y las reglas del schema. No
+    lleva objetivos, KPIs ni fallas de candidatas anteriores: el LLM propone a
+    ciegas. Es el punto de la línea base, y la razón del nombre: sin eso no se
+    puede decir cuánto aporta el bucle.
+    """
+    reference = json.dumps(
+        fixed_rule_policy().model_dump(mode="json", by_alias=True),
+        sort_keys=True,
+        ensure_ascii=False,
+    )
+    return "\n".join(
+        [
+            f"escenario: {scenario}",
+            f"política de referencia (regla fija): {reference}",
+            "Devuelve una política distinta en JSON con estos campos:",
+            "- maintenance.pm_wear_threshold: por máquina M1 a M5, entre 0.30 y 0.95",
+            "- maintenance.max_pm_per_shift: entero entre 0 y 3",
+            "- dispatch.rule: EDD, SPT, WEIGHTED o CRITICAL_RATIO",
+            "- dispatch.weights (due_date, wear_risk, setup): solo con WEIGHTED, suman 1",
+            "- rules: hasta 5 reglas con if/then de mantenimiento y despacho",
+            "Propón una política distinta.",
+        ]
+    )

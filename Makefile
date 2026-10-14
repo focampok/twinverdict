@@ -3,7 +3,7 @@ include .env
 export
 endif
 
-.PHONY: setup db mock-llm web worker dev test lint bench enqueue-baseline enqueue-search search-mock baseline-optuna docker-build
+.PHONY: setup db mock-llm web worker dev test lint bench enqueue-baseline enqueue-search search-mock baseline-optuna baseline-llm-nf docker-build
 
 setup:
 	uv sync
@@ -44,6 +44,9 @@ search-mock:
 
 baseline-optuna:
 	uv run python -m baselines.optuna_search --profile default --seed 1
+
+baseline-llm-nf:
+	uv run python -m baselines.llm_nofeedback --profile default --seed 1
 
 docker-build:
 	docker build -t planta .
