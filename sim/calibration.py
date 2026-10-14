@@ -158,6 +158,12 @@ def fit_logistic(wear: np.ndarray, labels: np.ndarray) -> tuple[float, float, fl
     )
 
 
+# Forma de PlantConfig antes del corte del 14 oct 2026. write_params la anota aunque
+# el default ya sea la curva calibrada: si se reajusta, "antes" no puede volverse 0.95.
+PRE_CUT_MIDPOINT = 0.72
+PRE_CUT_STEEPNESS = 14.0
+
+
 def fit_failure_curve(dataset_path: str | Path) -> FailureParams:
     """Ajusta la forma con AI4I y conserva el nivel por minuto del simulador.
 
@@ -216,8 +222,8 @@ def write_params(
             "conserva el valor del simulador y queda como supuesto de planta."
         ),
         "previous": {
-            "midpoint": PlantConfig().failure_midpoint,
-            "steepness": PlantConfig().failure_steepness,
+            "midpoint": PRE_CUT_MIDPOINT,
+            "steepness": PRE_CUT_STEEPNESS,
         },
     }
     path.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n")
@@ -236,8 +242,8 @@ def main() -> None:
     print(f"filas: {summary.rows}  fallas por desgaste: {summary.wear_driven_events}")
     print(f"fondo sin desgaste: {summary.background_events} registros")
     print(f"base por registro: {base:.4f}")
-    print(f"midpoint: {midpoint:.4f}  (antes {PlantConfig().failure_midpoint})")
-    print(f"steepness: {steepness:.4f}  (antes {PlantConfig().failure_steepness})")
+    print(f"midpoint: {midpoint:.4f}  (antes {PRE_CUT_MIDPOINT})")
+    print(f"steepness: {steepness:.4f}  (antes {PRE_CUT_STEEPNESS})")
     print(f"log-verosimilitud: {likelihood:.2f}")
     print(f"escrito: {CALIBRATED_PATH}")
 

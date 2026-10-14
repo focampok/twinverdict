@@ -10,6 +10,7 @@ from urllib.parse import urlsplit
 
 from config import Settings
 from search.config import SearchConfig
+from sim.config import PlantConfig
 
 if TYPE_CHECKING:  # evita el ciclo: search.loop importa este módulo para el payload
     from search.loop import SearchResult
@@ -71,6 +72,7 @@ def build_search_config(
     eficiencia tenía que venir de una bandera escrita a mano.
     """
     base_url = Settings().LLM_BASE_URL if llm_base_url is None else llm_base_url
+    plant = PlantConfig()
     return {
         "N": config.N,
         "K": config.K,
@@ -86,4 +88,6 @@ def build_search_config(
         "scenario": result.scenario,
         "llm_base_url": base_url,
         "llm_source": llm_source(base_url, model),
+        "failure_midpoint": plant.failure_midpoint,
+        "failure_steepness": plant.failure_steepness,
     }

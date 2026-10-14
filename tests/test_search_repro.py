@@ -52,3 +52,5 @@ def test_build_search_config_records_the_endpoint_and_the_source() -> None:
     assert payload["llm_base_url"] == MOCK_URL
     assert payload["llm_source"] == "mock"
     assert payload["K"] == config.K
+    assert payload["failure_midpoint"] == 0.95
+    assert payload["failure_steepness"] == 18.0

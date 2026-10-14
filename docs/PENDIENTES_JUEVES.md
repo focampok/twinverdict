@@ -8,21 +8,21 @@ LLM sin retroalimentación) y la tabla de eficiencia de los cuatro métodos en
 
 ## En orden
 
-1. **Corte de calibración, antes de las corridas finales.** `PlantConfig` adopta
-   `calibrated_plant_config()` como configuración por defecto: `failure_midpoint` 0.72 → 0.95
-   y `failure_steepness` 14 → 18, la forma ajustada con AI4I 2020. Es un **cambio anunciado en
-   un corte limpio**, no un ajuste silencioso, y hay que decir en voz alta que **los objetivos
-   anteriores y posteriores al corte no son comparables**. Después del cambio se **re-corren
-   los cuatro métodos** (regla fija, Optuna, LLM sin retroalimentación y bucle) con esa
-   configuración y el mismo presupuesto, y la tabla de eficiencia se rehace con esos números:
-   la actual quedó corrida entera con la config vieja y no se mezcla.
+1. **Corte de calibración.** Hecho el 14 oct: `PlantConfig` usa midpoint 0.95 y steepness 18.
+   Anunciado en `docs/CALIBRATION.md` y `docs/BENCHMARKS.md`. Los objetivos de antes y de
+   después no se comparan. En local ya están re-corridas la regla fija y Optuna (perfil
+   `default`, seed 1, holdout 300); su JSON es el que `make gpu2` toma para esas dos filas.
+   Falta re-correr, en esa misma planta, el LLM sin retroalimentación y el bucle: lo hace
+   `make gpu2`, y la tabla de los cuatro métodos se rehace ahí. La tabla publicada antes del
+   corte se midió con midpoint 0.72 y no se mezcla.
 
    El nivel por minuto no entra en el corte: sigue siendo un supuesto de planta, porque AI4I no
    trae duración por registro (`level_calibrated: false` en `sim/calibrated_params.json`).
 
-   Lo que el corte **no** debería mover es el titular de la tarjeta: con y sin calibrar, el % a
-   tiempo va de 44.7% a 48.6% en la regla fija y de 98.4% a 99.2% en la mejor política. Si al
-   re-correr sale otra cosa, decirlo.
+   El titular se re-verificó con el default ya cambiado. En las 100 semillas de
+   `docs/CALIBRATION.md` se reproduce: 48.6% la regla fija y 99.2% la mejor política de ese
+   bucle. En el holdout de 300 (1 000 001–1 000 300) esa pareja es 50.6% → 99.3%, y el Optuna
+   nuevo llega a 99.9%. Sigue en la línea de 48.6% → ~99%.
 
 2. **Figura de la curva de eficiencia en Chart.js** (Prompts 17 y 18). Hoy quedó solo el JSON
    con las cuatro curvas, `bench/results/efficiency_20261014.json`, porque no se sumó

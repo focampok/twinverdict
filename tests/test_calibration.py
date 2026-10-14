@@ -61,16 +61,22 @@ def test_the_per_minute_level_is_not_calibrated() -> None:
     assert fit_failure_curve(FIXTURE).base_per_min == PlantConfig().failure_base_per_min
 
 
-def test_calibrated_config_only_moves_the_shape() -> None:
+def test_default_plant_is_the_calibrated_shape() -> None:
+    """Corte del 14 oct 2026: PlantConfig ya nace con la forma de AI4I."""
     payload = json.loads(CALIBRATED_PATH.read_text())
-    config = calibrated_plant_config()
-    default = PlantConfig()
+    config = PlantConfig()
+    calibrated = calibrated_plant_config()
     assert config.failure_midpoint == pytest.approx(payload["midpoint"])
     assert config.failure_steepness == pytest.approx(payload["steepness"])
-    assert config.failure_base_per_min == default.failure_base_per_min
-    assert config.horizon_min == default.horizon_min
-    assert config.repair_cost == default.repair_cost
+    assert calibrated.failure_midpoint == pytest.approx(config.failure_midpoint)
+    assert calibrated.failure_steepness == pytest.approx(config.failure_steepness)
+    assert config.failure_base_per_min == tuple(payload["base_per_min"])
+    assert calibrated.failure_base_per_min == config.failure_base_per_min
+    assert calibrated.horizon_min == config.horizon_min
+    assert calibrated.repair_cost == config.repair_cost
     assert payload["level_calibrated"] is False
+    assert payload["previous"]["midpoint"] == pytest.approx(0.72)
+    assert payload["previous"]["steepness"] == pytest.approx(14.0)
 
 
 def _result(metrics: dict) -> dict:

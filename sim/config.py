@@ -5,7 +5,12 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True, slots=True)
 class PlantConfig:
-    """Unidades en minutos. Defaults de la línea v0, calibrables después."""
+    """Unidades en minutos.
+
+    La forma desgaste → riesgo es el corte AI4I del 14 oct 2026: midpoint 0.95 y
+    steepness 18. El nivel por minuto no se calibró y sigue siendo supuesto de planta.
+    Los objetivos medidos antes de ese corte no se comparan con los de después.
+    """
 
     horizon_min: float = 7 * 24 * 60
     shift_min: float = 8 * 60
@@ -26,8 +31,8 @@ class PlantConfig:
         (0.006, 0.0045, 0.005, 0.004, 0.006),
         (0.003, 0.0035, 0.004, 0.006, 0.0045),
     )
-    failure_midpoint: float = 0.72
-    failure_steepness: float = 14.0
+    failure_midpoint: float = 0.95
+    failure_steepness: float = 18.0
     failure_base_per_min: tuple[float, float, float] = (0.0015, 0.0012, 0.0018)
     failure_rate_scale: float = 1.0
     repair_mean_min: tuple[float, float, float] = (40.0, 25.0, 18.0)

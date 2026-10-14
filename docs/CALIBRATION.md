@@ -115,8 +115,9 @@ Lectura:
   benigna (los fallos se concentran a desgaste muy alto), y eso se ve en `fallas` y en el
   paro no planificado, que caen a un tercio.
 - **Conclusión:** los objetivos de dos configuraciones distintas **no son comparables entre
-  sí**; solo lo son dentro de la misma configuración. Para comparar métodos, lo que vale es
-  la tabla de eficiencia de `docs/BENCHMARKS.md`, corrida toda con la config por defecto.
+  sí**; solo lo son dentro de la misma configuración. En esta tabla, «por defecto» es la
+  planta de antes del corte (midpoint 0.72, steepness 14). La tabla de eficiencia de esa
+  planta está en `docs/BENCHMARKS.md`, antes de la sección «Corte de calibración».
 
 La "mejor política del martes" no se pudo re-pull: el job `78fea53a` no está en el Postgres
 local (`search_runs` solo tiene dos filas del perfil `smoke`, de los tests). Se usó la mejor
@@ -124,21 +125,28 @@ política del bucle de hoy con el perfil `default`, cuyos números de holdout re
 del martes, así que muy probablemente es la misma. La comparación es entre columnas con la
 misma política, así que lo que se mide es el efecto de calibrar, no el valor absoluto.
 
-## ¿Se usa como parámetro por defecto de aquí en adelante?
+## Corte del 14 oct 2026: esta forma es el default
 
-**Recomendación: no cambiar el default todavía.** El cambio es científicamente razonable,
-pero `PlantConfig` por defecto es la vara con la que se midió todo lo anterior (lunes,
-martes, los cuatro métodos de hoy). Cambiarlo ahora rompería la comparabilidad de los
-objetivos ya publicados y de la tabla de eficiencia.
+`PlantConfig` adopta la forma ajustada: `failure_midpoint` 0.95 y `failure_steepness` 18.
+`calibrated_plant_config()` sigue leyendo `sim/calibrated_params.json` y, con ese archivo,
+coincide con el default. El nivel por minuto no entra en el corte (`level_calibrated: false`):
+`failure_base_per_min` sigue en (0.0015, 0.0012, 0.0018).
 
-La forma calibrada está disponible sin tocar el default, en una línea:
+**Los objetivos de antes y de después de este corte no se comparan.** El objetivo compuesto
+no está acotado a 0–1 y una planta más benigna sube el término de throughput. Las tablas de
+`docs/BENCHMARKS.md` anteriores a la sección «Corte de calibración» se midieron con midpoint
+0.72 y steepness 14. Un objetivo de 1.00 ahí y otro de 1.40 aquí no dicen quién gana.
 
-```python
-from sim.calibration import calibrated_plant_config
+La forma previa queda en `PRE_CUT_MIDPOINT` / `PRE_CUT_STEEPNESS` (`sim/calibration.py`) para
+que un reajuste futuro siga anotando 0.72 y 14 como «antes», y para `bench.calibration_impact`.
 
-metrics = simulate(policy, seed, calibrated_plant_config())
-```
+## El titular, otra vez, con el default ya cambiado
 
-Si se decide adoptarla, conviene hacerlo como un cambio anunciado y en un corte limpio
-(después de las corridas finales del jueves), dejando dicho que los objetivos de antes y
-después de ese punto no se comparan. Decisión pendiente.
+Las mismas 100 semillas de la tabla de impacto (1 000 001–1 000 100), ahora con `PlantConfig()`
+a secas. Reproducen la columna «calibrado»: regla fija 48.6% a tiempo (objetivo 0.7424) y la
+mejor política del bucle de ese día 99.2% (objetivo 1.4047). El titular 48.6% → ~99% sigue en
+pie.
+
+En las 300 semillas de holdout del perfil `default` (1 000 001–1 000 300) la misma pareja da
+50.6% → 99.3%. Optuna, re-corrido en esta planta, llega a 99.9% en esas 300. El detalle de
+train, holdout e intervalo está en la sección «Corte de calibración» de `docs/BENCHMARKS.md`.

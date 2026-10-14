@@ -350,15 +350,14 @@ validación del martes (44.7% contra 46.3%, 98.4% contra 98.7%; son 100 de las 3
 El objetivo compuesto sí se mueve mucho (0.948 → 1.4047), pero **no es una mejora del
 método**: el objetivo no está acotado a 0–1 y el término de throughput pesa, así que una
 planta más benigna produce más. **Los objetivos de dos configuraciones distintas no son
-comparables entre sí**; la tabla de eficiencia de la sección anterior se corrió entera con la
-config por defecto y sigue siendo la comparación válida.
-
-El default de `PlantConfig` **no se cambió**: es la vara con la que se midió todo lo anterior
-y cambiarla rompería la comparabilidad. La forma calibrada se usa explícitamente con
-`calibrated_plant_config()`. Adoptarla como default es una decisión pendiente, y de hacerse
-conviene anunciarla en un corte limpio (ver `docs/CALIBRATION.md`).
+comparables entre sí.** Las tablas de eficiencia de más arriba se midieron con midpoint 0.72
+y steepness 14. Las filas «calibrado» de esta tabla ya usan 0.95 y 18, pero esa forma todavía
+no era el default. El corte que la adopta está más abajo.
 
 ## Miércoles 14, sesión GPU 2 (Qwen3-8B, vLLM)
+
+Planta de antes del corte: `failure_midpoint` 0.72, `failure_steepness` 14. Estos objetivos
+no se comparan con los de la sección «Corte de calibración».
 
 `make gpu2` con perfil `default`, seed 1, holdout 300, `SIM_WORKERS=16` y
 `LLM_MODEL=Qwen/Qwen3-8B` por el túnel `http://127.0.0.1:8000/v1`. El bucle es el job
@@ -395,3 +394,35 @@ La ganadora es SPT, `max_pm_per_shift=2`, `pm_wear_threshold` vacío, 5 reglas. 
 ganador es WEIGHTED con pesos (0.25, 0.5, 0.25), el mismo `max_pm_per_shift=2` y umbrales
 vacíos, 5 reglas. En `bench/results` no hay corrida 32B de esta sesión. `LLM_MODEL` sigue en
 `Qwen/Qwen3-8B`.
+
+## Corte de calibración (14 oct 2026)
+
+`PlantConfig` adopta la forma AI4I: `failure_midpoint` 0.95, `failure_steepness` 18.
+`failure_base_per_min` no cambia. `calibrated_plant_config()` coincide con ese default.
+**Los objetivos de esta sección no se comparan con los de arriba.** Un 1.52 aquí y un 1.01
+en la tabla de GPU 2 no dicen cuál método gana: la planta es otra.
+
+El JSON que `make gpu2` leerá para Optuna y para la regla fija es
+`bench/results/optuna_default_seed1_20261014.json` (perfil `default`, seed 1, 69_300
+simulaciones de entrenamiento, 16.1 min, 385 trials, 0 fallidos, 16 workers). Su `config`
+declara `failure_midpoint` 0.95 y `failure_steepness` 18. El JSON de antes del corte quedó
+aparte, con nombre que la tabla no recoge (`precut_optuna_…` y `precut_llm_nofeedback_…`):
+mezclar el one-shot viejo (objetivo fijo 0.2489) con este Optuna haría que la tabla tomara
+el mínimo y publicara una planta que no corrió. El one-shot y el bucle de esta planta los
+escribe `make gpu2`; hasta entonces no hay tabla de cuatro métodos.
+
+Holdout de 300 semillas (1 000 001–1 000 300), el mismo que usa `eval.efficiency`. El IC es
+el bootstrap de 2000 remuestreos con `PCG64(0)`. La columna «sims al 90%» espera a los cuatro
+métodos, porque el umbral usa el mejor global.
+
+| método | train | holdout | IC 95% | % a tiempo | sims |
+|---|---:|---:|---|---:|---:|
+| regla fija | 0.7858 | 0.7725 | [0.7431, 0.8017] | 50.6% | 180 |
+| Optuna TPE | 1.5188 | 1.5126 | [1.5048, 1.5198] | 99.9% | 69_300 |
+
+Precisión del JSON: regla fija **0.7858323573895744**, Optuna **1.5188378682250157**.
+
+El titular de % a tiempo, en las 100 semillas de `docs/CALIBRATION.md` (1 000 001–1 000 100),
+se reproduce con el default nuevo: regla fija 48.6% y la mejor política del bucle de ese
+día 99.2%. En las 300 de holdout esa misma pareja es 50.6% → 99.3% (objetivo de holdout
+1.406985). Sigue en la línea de 48.6% → ~99%.

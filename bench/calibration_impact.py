@@ -1,8 +1,9 @@
 """Impacto de calibrar la curva desgaste → riesgo: misma política, dos PlantConfig.
 
 Compara la regla fija y la mejor política de una búsqueda, en las mismas semillas, con
-los parámetros de planta por defecto y con los calibrados de `sim/calibrated_params.json`.
-Lo único que cambia entre las dos columnas es `failure_midpoint` y `failure_steepness`.
+la forma de antes del corte (midpoint 0.72, steepness 14) y con la de ahora, que es el
+default. Lo único que cambia entre las dos columnas es `failure_midpoint` y
+`failure_steepness`.
 
 Las semillas son las de holdout, las que no vio ninguna búsqueda, para que el número sea
 comparable con el % a tiempo de la tarjeta de operador.
@@ -12,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from dataclasses import replace
 from pathlib import Path
 
 import numpy as np
@@ -20,7 +22,7 @@ from config import Settings
 from eval.efficiency import holdout_seeds
 from policy.schema import Policy, fixed_rule_policy, parse_policy
 from search.config import SearchConfig
-from sim.calibration import calibrated_plant_config
+from sim.calibration import PRE_CUT_MIDPOINT, PRE_CUT_STEEPNESS
 from sim.config import PlantConfig
 from sim.objective import composite_objective, load_objective_weights
 from sim.runner import simulate_many
@@ -64,13 +66,17 @@ def main() -> None:
         "mejor del bucle": parse_policy(payload["best_policy"]),
     }
 
-    default = PlantConfig()
-    calibrated = calibrated_plant_config()
+    before = replace(
+        PlantConfig(),
+        failure_midpoint=PRE_CUT_MIDPOINT,
+        failure_steepness=PRE_CUT_STEEPNESS,
+    )
+    calibrated = PlantConfig()
     print(f"semillas: {seeds[0]}..{seeds[-1]} ({len(seeds)})  workers={workers}")
     print(f"política: {policy_path.name}")
     print(
-        f"midpoint/steepness: por defecto {default.failure_midpoint}/{default.failure_steepness}"
-        f"  calibrado {calibrated.failure_midpoint}/{calibrated.failure_steepness}"
+        f"midpoint/steepness: antes del corte {before.failure_midpoint}/{before.failure_steepness}"
+        f"  corte {calibrated.failure_midpoint}/{calibrated.failure_steepness}"
     )
     header = (
         f"{'política':<18}{'config':<11}{'objetivo':>10}{'% a tiempo':>12}"
@@ -78,7 +84,7 @@ def main() -> None:
     )
     print(header)
     for name, policy in policies.items():
-        for label, plant in (("defecto", default), ("calibrado", calibrated)):
+        for label, plant in (("antes", before), ("corte", calibrated)):
             result = evaluate(policy, plant, seeds, workers)
             print(
                 f"{name:<18}{label:<11}{result['objective']:>10.4f}"
