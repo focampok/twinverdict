@@ -245,3 +245,69 @@ corrida al mismo perfil.
 
 Sobre el reloj: 15.6 min con 16 workers (0.0135 s/sim), entre los 0.0113 s/sim de la corrida
 de Optuna y los 0.0212 s/sim del job `78fea53a`.
+
+## Miércoles 14, curva de eficiencia
+
+Métrica de la sección 7 del plan: el mejor objetivo encontrado contra simulaciones gastadas,
+una curva por método, todos con el mismo presupuesto de entrenamiento (perfil `default`,
+K=180, semillas `range(1, 181)`, escenario `base`). El umbral se fijó **antes** de mirar los
+resultados, sobre la mejora y no sobre el objetivo (que no está acotado a 0–1):
+
+`target = fixed + 0.9 * (best_global - fixed) = 0.2489 + 0.9*(1.0061 - 0.2489) = 0.9303`
+
+Código: `eval/efficiency.py`, commit `efd808a`. La búsqueda del bucle de este perfil y semilla
+se corrió nueva (`search.loop --seed 1 --holdout 0`); el job `78fea53a` es K=300 y no era
+comparable. Se usó `--holdout 0` porque esas semillas se suman a `simulations_total` y
+romperían el presupuesto igual.
+
+| método | mejor train | holdout | IC 95% | % a tiempo holdout | sims gastadas | sims al 90% | notas |
+|---|---:|---:|---|---:|---:|---:|---|
+| regla fija | 0.2489 | 0.2483 | [0.2175, 0.2773] | 46.2% | 180 | no alcanza | definitivo |
+| Optuna TPE | 1.0061 | 0.9906 | [0.9779, 1.0031] | 99.6% | 69_300 | 3_060 | definitivo |
+| LLM sin retroalimentación | 0.9592 | 0.9579 | [0.9439, 0.9715] | 98.7% | 69_300 | 43_380 | mock, no es medida del LLM |
+| bucle con retroalimentación | 0.9592 | 0.9579 | [0.9439, 0.9715] | 98.7% | 69_300 | 43_380 | mock, no es medida del LLM |
+
+Holdout: las 300 semillas desde 1_000_001, las de `run_search`, con IC 95% por bootstrap de
+2000 remuestreos y `PCG64(0)`. Son 4 × 300 = 1_200 simulaciones **fuera** del presupuesto de
+búsqueda. El % a tiempo se recalcula desde el `best_policy` guardado de cada método.
+
+Cruce con la validación del martes, que no se tocó: la regla fija da 46.2% a tiempo con IC
+[0.2175, 0.2773] y la política del bucle 98.7% con [0.9439, 0.9715], frente a los (0.218,
+0.277) y (0.944, 0.972) que ya estaban en `BENCHMARKS.md`. El pipeline de holdout y bootstrap
+reproduce esos números, así que la comparación de arriba se apoya en el mismo instrumento.
+
+**Qué se puede concluir hoy y qué no.** La comparación definitiva de esta tabla es la regla
+fija contra Optuna, porque ninguna de las dos pasa por el LLM. Optuna gana en las 180 semillas
+de entrenamiento (1.0061 contra 0.2489) y en holdout (0.9906 contra 0.2483), y llega al umbral
+en **3_060** simulaciones contra las 43_380 del LLM de un solo disparo y del bucle.
+
+Las dos filas del LLM son **el mismo número por construcción**, no por casualidad: las curvas
+son idénticas punto por punto (9 puntos, los mismos valores). El mock deriva cada política de
+la semilla y no lee el prompt, y las dos corridas usan las mismas semillas de muestreo, así
+que los 384 candidatos son el mismo conjunto y el orden por lotes es el mismo que por rondas.
+Lo que esa igualdad mide es el techo de 384 sorteos del mock, no lo que aporta la
+retroalimentación. Como el mock es un generador aleatorio sobre el espacio de políticas, la
+comparación que sí queda medida es **TPE contra búsqueda aleatoria**: 1.0061 contra 0.9592 y
+3_060 contra 43_380 simulaciones es la eficiencia de muestreo de TPE, y el resultado es que le
+saca 0.047 con catorce veces menos simulaciones.
+
+La ventaja estructural del LLM —hasta 5 reglas condicionales, que Optuna no escribe nunca—
+no se puede evaluar con el mock. La política ganadora del mock usa una regla
+(`queue_len_gt=4 → BATCH_SAME_PRODUCT`) y aun así pierde, pero eso no dice nada sobre reglas
+escritas por un LLM: dice que 384 sorteos no le ganan a TPE. Si el LLM llega a un resultado
+comparable cuando corra contra vLLM, el mensaje es que llega con esas simulaciones y que puede
+explicar el porqué con reglas legibles; hoy esa frase todavía no está medida. La repetición
+contra vLLM es la misma orden, sin tocar código, con `--llm-source vllm` sobre los JSON de esa
+sesión.
+
+Granularidad de cada curva: es la granularidad con la que el método puede actuar sobre la
+información. Por trial en Optuna (cada trial ve los anteriores, 385 puntos), por ronda o lote
+en el bucle y en el LLM sin retroalimentación (las N candidatas se proponen juntas y después
+se simulan, 9 puntos; un punto por candidata inflaría al bucle), y un solo punto en la regla
+fija, que se extiende horizontal hasta el presupuesto. Con esa granularidad, la columna "sims
+al 90%" del one-shot y del bucle está cuantizada a lotes de 8_640 simulaciones, así que su
+cruce cae en la frontera del lote y no antes.
+
+JSON con las cuatro curvas: `bench/results/efficiency_20261014.json` (local; `bench/results`
+está ignorado). La figura queda para el jueves en Chart.js, como permite el plan: no se sumó
+matplotlib.
