@@ -69,3 +69,89 @@ Misma laptop para la simulación (0.0121 s por simulación, 16 workers). Concurr
 | p95 s | 3.3896 | 3.7793 |
 
 Con N=48, K=300, R=8 el LLM pide 384 políticas válidas. El 8B tarda 0.48 min; el 32B, 384 / 634.2 = 0.61 min. La simulación sigue en 23.27 min. El total pasa de 23.8 a 23.9 min. N, K y R no cambian: el reloj sigue siendo la simulación. El 8B da más tokens por segundo y no baja de 0.95 de JSON válido, así que sigue como `LLM_MODEL` por defecto. El 32B se evaluará por calidad de política, no por tokens por segundo.
+
+## Validación job 78fea53a
+
+Job `78fea53a-be2d-4bf5-98a3-e9a12b6cba83`, mock, escenario base. Postgres: `started_at` 2026-10-13 17:27:33−06, `finished_at` 18:08:22−06, **2448.5 s (40.8 min)**, 115_500 simulaciones, 385 políticas (1 regla fija + 384 del LLM, 48/48 válidas en las 8 rondas). Semillas de búsqueda: 1–300. El job no corrió holdout (`params` no trae `holdout`; en `metrics` solo hay `seed_set=train`). La mejor política aparece en la ronda 5.
+
+El simulador no se tocó. No apareció un bug de conservación, de semillas ni de mantenimiento apagado, así que no hay test de regresión nuevo.
+
+### Objetivo de entrenamiento y contribución de cada KPI
+
+Fórmula (`sim/objective.py`, pesos en `sim/objective_weights.json`). Mayor es mejor y no está recortado a [0, 1]:
+
+`throughput/400 + on_time_rate/1 − unplanned_h/40 − 0.5·planned_h/20 − 0.5·costo/10000`
+
+Medias sobre las 300 semillas de búsqueda. Los términos reconstruyen el objetivo guardado (0.236458 y 0.957665). El intervalo de la fila es el que ya guardó el job: media ± 1.96·s/√n, no el bootstrap de más abajo.
+
+| | regla fija | mejor (ronda 5) |
+|---|---:|---:|
+| objetivo | 0.2365 (0.2058, 0.2671) | 0.9577 (0.9440, 0.9714) |
+| throughput (órdenes completadas) | 736.16 | 822.49 |
+| % a tiempo | 0.4591 | 0.9852 |
+| paro no planificado (h) | 20.58 | 12.24 |
+| paro planificado (h) | 20.77 | 32.49 |
+| costo de mantenimiento | 20_586 | 19_313 |
+| órdenes creadas | 839.51 | 839.51 |
+| WIP | 103.35 | 17.02 |
+| fallas | 46.05 | 27.73 |
+| mantenimientos preventivos | 103.86 | 162.50 |
+
+| término | peso | fija | mejor | diferencia |
+|---|---:|---:|---:|---:|
+| throughput / 400 | 1 | 1.8404 | 2.0562 | +0.2158 |
+| % a tiempo | 1 | 0.4591 | 0.9852 | +0.5261 |
+| − paro no planificado / 40 | 1 | −0.5145 | −0.3060 | +0.2085 |
+| − 0.5 · paro planificado / 20 | 0.5 | −0.5193 | −0.8122 | −0.2929 |
+| − 0.5 · costo / 10000 | 0.5 | −1.0293 | −0.9656 | +0.0637 |
+| suma | | 0.2365 | 0.9577 | +0.7212 |
+
+El salto lo explica el **% a tiempo** (0.46 → 0.99, +0.53 de los +0.72). Throughput y menos paro no planificado suman unos +0.21 cada uno. El paro planificado empuja al revés: la ganadora hace más preventivo.
+
+La referencia de throughput es 400 y la línea completa unas 740–820 órdenes, así que ese término vale ~2 y sube el nivel de las dos políticas. La regla fija queda en 0.24 porque llega tarde y acumula WIP, no porque el objetivo la recorte.
+
+La ganadora es WEIGHTED (pesos plazo 0.423, setup 0.093, riesgo de desgaste 0.484), `max_pm_per_shift=2`, umbrales M3=0.95, M4=0.92, M5=0.83. M1 y M2 no vienen en el JSON y usan el umbral por defecto 0.75. La regla fija es EDD, umbral 0.75 en las cinco y un preventivo por turno. La ganadora hace más preventivo (162 vs 104) y más paro planificado (32.5 h vs 20.8 h). No gana apagando el mantenimiento.
+
+`orders_created` es igual en las dos (839.51). En cada semilla, creadas = completadas + WIP. La demanda no depende de la política.
+
+### Holdout y estrés
+
+Holdout: semillas 1_000_001–1_000_300, las de `run_search` cuando `holdout_seeds=300`. Intersección con 1–300: vacía. Estrés, las mismas semillas, con `scenario_config`: fallas ×1.3 y demanda ×1.5. IC 95% por bootstrap del objetivo por semilla: 2000 remuestreos, `numpy.random.Generator(PCG64(0))`, percentiles 2.5 y 97.5 de la media. Conservación de órdenes: 0 fallos en las cuatro evaluaciones. `orders_created` coincide entre políticas (holdout 838.83, estrés 1259.12).
+
+| | objetivo | IC 95% | % a tiempo | throughput | paro no planificado (h) |
+|---|---:|---:|---:|---:|---:|
+| fija, holdout | 0.2483 | (0.2175, 0.2773) | 0.4625 | 737.04 | 20.55 |
+| mejor, holdout | 0.9579 | (0.9439, 0.9715) | 0.9868 | 822.20 | 12.31 |
+| fija, estrés | −0.3210 | (−0.3392, −0.3029) | 0.1259 | 738.56 | 24.76 |
+| mejor, estrés | −0.0693 | (−0.0942, −0.0464) | 0.2744 | 955.87 | 22.10 |
+
+En holdout el hueco se mantiene (+0.71) y otra vez lo lleva el % a tiempo (+0.52). En estrés las dos quedan negativas: la demanda sube a 1259 órdenes y el WIP sigue alto (521 la fija, 303 la ganadora). El hueco baja a +0.25 y ahí el término grande es el throughput (955.9 vs 738.6). La ganadora sigue por delante; el intervalo no se cruza en ninguno de los dos escenarios.
+
+### Workers y los 40 min
+
+`jobs.params` no trae `workers`. `_run_search` deja `workers=None` y `run_search` usa `Settings().SIM_WORKERS`. El `.env` de esta corrida tiene `SIM_WORKERS=16`. Con el default del código (2) y el tiempo interno de una simulación en ráfaga (~0.17 s), 115_500 simulaciones serían unas 2.7 h. El job tardó 40.8 min, que encaja con 16 workers al ritmo sostenido de abajo.
+
+Reloj del job: 2448.5 / 115_500 = **0.0212 s por simulación**. El benchmark del mismo día (100 semillas, un solo pool) fue **0.0121 s**. Repetición el 13 oct por la tarde, regla fija, 300 semillas, 16 workers:
+
+| tanda | reloj | tiempo dentro del proceso | s/sim efectivos |
+|---|---:|---:|---:|
+| primer pool nuevo | 3.39 s | 0.174 s | 0.0113 |
+| pools nuevos 2–6 | ~7.2 s | ~0.37 s | ~0.024 |
+| seis tandas en un pool ya abierto | ~7.1 s | ~0.35 s | ~0.024 |
+
+La primera tanda reproduce el benchmark. A partir de la segunda, el tiempo dentro del proceso se duplica (0.17 s → 0.37 s) y el reloj de pared lo sigue. Un pool compartido no acorta la tanda: el arranque de `ProcessPoolExecutor` no es el hueco. Postgres escribe una fila de `metrics` por política al cerrar el job (385 filas, eventos de ronda entre 18:08:21 y 18:08:22), no una escritura por simulación.
+
+16 núcleos a 0.34 s internos dan 300 × 0.34 / 16 = 6.4 s por política. El job hizo 2448.5 / 385 = 6.36 s por política. El paralelo estaba ocupado; el extra frente a los 24 min esperados es la frecuencia sostenida del Core Ultra 7 255H. La ráfaga de 100 semillas cabe en turbo y el job de 40 min no. No hay un cambio pequeño de código que devuelva el 0.0121 s mientras la CPU sigue cargada.
+
+### K para 20 a 30 min
+
+Al ritmo del job (0.0212 s/sim) y con 385 políticas (1 + 48×8, todas válidas, como esta corrida):
+
+| K | simulaciones | minutos |
+|---:|---:|---:|
+| 150 | 57_750 | 20.4 |
+| 180 | 69_300 | 24.5 |
+| 200 | 77_000 | 27.2 |
+| 300 | 115_500 | 40.8 |
+
+**K recomendado: 180** (~24.5 min). N y R se quedan en 48 y 8. El default de `search/config.py` sigue en K=300 hasta aplicar este cambio; el comentario de ese archivo apunta aquí.

@@ -1,8 +1,8 @@
-"""N, K y R para una búsqueda de unos 24 min.
+"""N, K y R de la búsqueda.
 
-Medido el 13 oct 2026: 796.5 políticas válidas por minuto (Qwen3-8B, concurrencia 32)
-y 0.0121 s por simulación en la laptop con 16 workers. El cálculo está en
-docs/BENCHMARKS.md. Hace falta SIM_WORKERS=16; con 2 workers el tiempo se multiplica.
+K=300 sale del ritmo de ráfaga (0.0121 s por simulación, unos 24 min). El job
+78fea53a sostuvo 0.0212 s por simulación y tardó 40.8 min. Para 20 a 30 min a ese
+ritmo, K=180. El detalle está en docs/BENCHMARKS.md. Hace falta SIM_WORKERS=16.
 """
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
