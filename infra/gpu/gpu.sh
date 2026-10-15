@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC2016,SC2029
 # TwinVerdict: control de la GPU MI300X sin terminales bloqueadas.
 # Uso: infra/gpu/gpu.sh <comando> [args]
 #   tunnel        abre el túnel SSH en segundo plano (localhost:8000)

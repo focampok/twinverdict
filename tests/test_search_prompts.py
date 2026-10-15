@@ -101,14 +101,36 @@ def test_rules_and_pm_limit_are_part_of_the_key() -> None:
     assert simulator_key(base) != simulator_key(swapped)
 
 
-def test_prompt_asks_for_local_edits_and_version_one() -> None:
+def test_prompt_asks_for_local_edits_and_shows_the_effective_threshold() -> None:
     policy = _policy(version=4, rules=[_RULE])
     prompt = build_search_prompt("base", [_Scored(policy, 0.871211)])
     assert "Sobre politica_1, haz de 2 a 4 cambios locales." in prompt
-    assert "pm_wear_threshold" in prompt
+    assert "Puedes cambiar la regla de despacho, max_pm_per_shift y rules" in prompt
+    assert "entre 0.30 y 0.95" in prompt
+    assert "El ausente vale 0.75." in prompt
+    assert "cerca de 0.95" in prompt
+    assert "según la calibración" in prompt
     assert "Fija version=1." in prompt
     assert "kpis=" in prompt
     assert "fallas=" in prompt
+    assert "Mantén el resto" not in prompt
     body = json.loads(prompt.split(" json=", 1)[1].split("\n", 1)[0])
     assert body["version"] == 1
+    assert body["maintenance"]["pm_wear_threshold"] == {
+        "M1": 0.75,
+        "M2": 0.75,
+        "M3": 0.75,
+        "M4": 0.75,
+        "M5": 0.75,
+    }
     assert policy.version == 4
+    assert policy.maintenance.pm_wear_threshold == {}
+
+
+def test_free_prompt_asks_for_a_policy_distinct_from_the_top() -> None:
+    prompt = build_search_prompt("base", [_Scored(_policy(), 0.5)], kind="free")
+    assert "política libre y distinta al top-k" in prompt
+    assert "max_pm_per_shift" in prompt
+    assert "rules" in prompt
+    assert "cerca de 0.95" in prompt
+    assert "cambios locales" not in prompt

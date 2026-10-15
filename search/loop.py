@@ -8,6 +8,7 @@ import json
 import math
 import statistics
 import time
+from collections.abc import Collection
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -17,7 +18,7 @@ from config import Settings
 from llm.client import LLMClient, ProposeResult
 from policy.schema import Policy, fixed_rule_policy
 from search.config import SearchConfig
-from search.prompts import build_search_prompt, dedupe_top
+from search.prompts import build_search_prompt, dedupe_top, simulator_key
 from search.repro import build_search_config
 from sim.objective import composite_objective, load_objective_weights
 from sim.runner import Scenario, simulate_many
@@ -89,23 +90,38 @@ def _confidence(values: list[float]) -> tuple[float, float, float]:
     return mean, mean - margin, mean + margin
 
 
-def _rank_key(item: EvaluatedPolicy) -> tuple[float, str]:
+def _rank_key(item: EvaluatedPolicy) -> tuple[float, int, str]:
+    """Mayor objetivo primero. En empate gana la ronda más temprana.
+
+    La política 0 es la ronda 0, así que un clon posterior no la desplaza. El JSON
+    solo desempata dentro de la misma ronda, para que el orden no dependa del proceso.
+    """
     body = json.dumps(item.policy_json(), sort_keys=True, ensure_ascii=False)
-    return (-item.objective, body)
+    return (-item.objective, item.round, body)
 
 
-def _exact_json(policy: Policy) -> str:
-    body = policy.model_dump(mode="json", by_alias=True)
-    return json.dumps(body, sort_keys=True, ensure_ascii=False)
-
-
-# Cada duplicado exacto se vuelve a pedir como mucho estas veces. Las semillas de
-# reintento caben en el hueco de 10_000 que separa las rondas (N=48 → menos de 200).
-MAX_EXACT_RETRIES = 2
+# Cada clon se vuelve a pedir como mucho estas veces. Si sigue siendo clon, se
+# descarta: la ronda simula menos políticas. Las semillas de reintento caben en
+# el hueco de 10_000 que separa las rondas (N=48 → menos de 200 por mitad).
+MAX_CLONE_RETRIES = 2
 
 
 class _Proposer(Protocol):
     async def propose(self, context: str, n: int, seed: int) -> ProposeResult: ...
+
+
+def local_and_free_counts(n: int) -> tuple[int, int]:
+    """Cuántas peticiones editan politica_1 y cuántas proponen libre.
+
+    El perfil default pide 24 y 24. Un N impar deja la propuesta de más en el lote libre.
+    """
+    local = n // 2
+    return local, n - local
+
+
+def _seed_span(n: int, max_retries: int) -> int:
+    """Semillas que puede gastar un lote: las N iniciales y hasta N por reintento."""
+    return n * (1 + max_retries)
 
 
 async def propose_distinct(
@@ -114,54 +130,85 @@ async def propose_distinct(
     n: int,
     seed: int,
     *,
-    max_retries: int = MAX_EXACT_RETRIES,
+    blocked: Collection[tuple] | None = None,
+    max_retries: int = MAX_CLONE_RETRIES,
 ) -> tuple[ProposeResult, int]:
-    """Pide n políticas y reintenta las copias exactas, como mucho `max_retries` por copia.
+    """Pide n políticas y se queda con las que el simulador distingue.
 
-    Se conserva la primera aparición. Cada reintento usa una semilla nueva y, si
-    sigue siendo una copia o sale inválido, se agota el cupo y queda la anterior.
+    Un clon —de este lote o de `blocked`— se vuelve a pedir, como mucho
+    `max_retries` veces. Si el reintento sigue siendo clon o sale inválido, se
+    descarta: no entra a la simulación. La ronda puede quedar con menos de n.
     """
     result = await llm_client.propose(prompt, n, seed)
-    seen: dict[str, int] = {}
-    pending: list[int] = []
-    for index, policy in enumerate(result.valid):
-        key = _exact_json(policy)
+    seen: set[tuple] = set() if blocked is None else set(blocked)
+    kept: list[Policy] = []
+    pending = 0
+    for policy in result.valid:
+        key = simulator_key(policy)
         if key in seen:
-            pending.append(index)
-        else:
-            seen[key] = index
+            pending += 1
+            continue
+        seen.add(key)
+        kept.append(policy)
     retries = 0
     next_seed = seed + n
     for _attempt in range(max_retries):
-        if not pending:
+        if pending == 0:
             break
-        seeds = [next_seed + offset for offset in range(len(pending))]
-        next_seed += len(pending)
-        retries += len(pending)
+        seeds = [next_seed + offset for offset in range(pending)]
+        next_seed += pending
+        retries += pending
         refreshed = await asyncio.gather(
             *(llm_client.propose(prompt, 1, retry_seed) for retry_seed in seeds)
         )
-        still: list[int] = []
-        for index, retry in zip(pending, refreshed, strict=True):
+        still = 0
+        for retry in refreshed:
             result.latencies_s.extend(retry.latencies_s)
             result.invalid.extend(retry.invalid)
             result.completion_tokens += retry.completion_tokens
             result.wall_s += retry.wall_s
             result.thinking = result.thinking or retry.thinking
             if not retry.valid:
-                still.append(index)
+                still += 1
                 continue
             candidate = retry.valid[0]
-            key = _exact_json(candidate)
+            key = simulator_key(candidate)
             if key in seen:
-                still.append(index)
+                still += 1
                 continue
-            seen[key] = index
-            result.valid[index] = candidate
+            seen.add(key)
+            kept.append(candidate)
         pending = still
+    result.valid = kept
     elapsed = max(result.wall_s, 1e-9)
     result.tokens_per_s = result.completion_tokens / elapsed
     return result, retries
+
+
+def _join_proposals(local: ProposeResult, free: ProposeResult) -> ProposeResult:
+    tokens = local.completion_tokens + free.completion_tokens
+    elapsed = max(local.wall_s + free.wall_s, 1e-9)
+    return ProposeResult(
+        valid=[*local.valid, *free.valid],
+        invalid=[*local.invalid, *free.invalid],
+        latencies_s=[*local.latencies_s, *free.latencies_s],
+        completion_tokens=tokens,
+        tokens_per_s=tokens / elapsed,
+        wall_s=local.wall_s + free.wall_s,
+        thinking=local.thinking or free.thinking,
+    )
+
+
+def _empty_proposal() -> ProposeResult:
+    return ProposeResult(
+        valid=[],
+        invalid=[],
+        latencies_s=[],
+        completion_tokens=0,
+        tokens_per_s=0.0,
+        wall_s=0.0,
+        thinking=False,
+    )
 
 
 def evaluate_policy(
@@ -276,12 +323,30 @@ async def run_search(
     policies = [fixed]
     rounds: list[RoundResult] = []
     sims = config.K
+    local_n, free_n = local_and_free_counts(config.N)
     for round_index in range(1, config.R + 1):
         top = dedupe_top(sorted(pool, key=_rank_key), config.TOP_K)
-        prompt = build_search_prompt(scenario, top)
-        proposed, retries = await propose_distinct(
-            llm_client, prompt, config.N, rng_seed + round_index * 10_000
-        )
+        blocked = {simulator_key(item.policy) for item in pool}
+        base = rng_seed + round_index * 10_000
+        local_prompt = build_search_prompt(scenario, top, kind="local")
+        free_prompt = build_search_prompt(scenario, top, kind="free")
+        if local_n:
+            local, retries_local = await propose_distinct(
+                llm_client, local_prompt, local_n, base, blocked=blocked
+            )
+        else:
+            local, retries_local = _empty_proposal(), 0
+        blocked.update(simulator_key(policy) for policy in local.valid)
+        free_seed = base + _seed_span(local_n, MAX_CLONE_RETRIES)
+        if free_n:
+            free, retries_free = await propose_distinct(
+                llm_client, free_prompt, free_n, free_seed, blocked=blocked
+            )
+        else:
+            free, retries_free = _empty_proposal(), 0
+        proposed = _join_proposals(local, free)
+        retries = retries_local + retries_free
+        prompt = f"{local_prompt}\n\n{free_prompt}"
         evaluated: list[EvaluatedPolicy] = []
         for policy in proposed.valid:
             evaluated.append(_timed(policy, train_seeds, "llm", round_index))

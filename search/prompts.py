@@ -12,6 +12,7 @@ from policy.schema import (
     fixed_rule_policy,
     parse_policy,
 )
+from sim.config import PlantConfig
 
 # El despacho lee los pesos en WEIGHTED y en CRITICAL_RATIO (sim/dispatch.py).
 # EDD y SPT no. version no entra en ninguna decisión.
@@ -94,31 +95,63 @@ def dedupe_top(ranked: list[_Scored], k: int) -> list[_Scored]:
 
 
 def _prompt_json(item: _Scored) -> str:
-    body = dict(item.policy_json())
+    """JSON que ve el modelo: version 1 y los umbrales que el simulador usaría."""
+    policy = parse_policy(item.policy_json())
+    body = policy.model_dump(mode="json", by_alias=True)
     body["version"] = 1
+    body["maintenance"]["pm_wear_threshold"] = {
+        machine: policy.maintenance.threshold_for(machine) for machine in MACHINES
+    }
     return json.dumps(body, sort_keys=True, ensure_ascii=False)
 
 
-def build_search_prompt(scenario: str, top: list[_Scored]) -> str:
+def _ask(kind: str, *, has_top: bool) -> str:
+    if kind == "local" and has_top:
+        return (
+            "Sobre politica_1, haz de 2 a 4 cambios locales. "
+            "Puedes cambiar la regla de despacho, max_pm_per_shift y rules, "
+            "además de pm_wear_threshold. "
+            "Escribe un umbral explícito para M1, M2, M3, M4 y M5. Fija version=1."
+        )
+    if kind == "free" and has_top:
+        return (
+            "Propón una política libre y distinta al top-k en lo que lee el simulador: "
+            "regla, umbrales, max_pm_per_shift y rules. "
+            "Puedes cambiar la regla de despacho, max_pm_per_shift y rules. "
+            "Escribe un umbral explícito para M1, M2, M3, M4 y M5. Fija version=1."
+        )
+    if kind not in {"local", "free"}:
+        raise ValueError(f"tipo de propuesta desconocido: {kind}")
+    return (
+        "Propón una política con version=1. "
+        "Puedes cambiar la regla de despacho, max_pm_per_shift y rules. "
+        "Escribe un umbral explícito para M1, M2, M3, M4 y M5."
+    )
+
+
+def build_search_prompt(scenario: str, top: list[_Scored], *, kind: str = "local") -> str:
+    """Una petición, una política. `kind` elige edición local o propuesta libre.
+
+    La ronda parte las N peticiones entre los dos textos. Con N=48 son 24 y 24.
+    """
+    midpoint = PlantConfig().failure_midpoint
     lines = [f"escenario: {scenario}"]
     if not top:
         lines.append("No hay políticas previas.")
-        lines.append(
-            "Propón una política con version=1 y pm_wear_threshold de M1 a M5, "
-            f"cada uno entre 0.30 y 0.95 (el ausente vale {DEFAULT_PM_THRESHOLD})."
-        )
-        return "\n".join(lines)
-    for index, item in enumerate(top, start=1):
-        kpis = json.dumps(_public_kpis(item.kpis), sort_keys=True)
-        lines.append(
-            f"politica_{index} objetivo={item.objective:.6f} kpis={kpis} "
-            f"fallas={failure_note(item.kpis)} json={_prompt_json(item)}"
-        )
+    else:
+        for index, item in enumerate(top, start=1):
+            kpis = json.dumps(_public_kpis(item.kpis), sort_keys=True)
+            lines.append(
+                f"politica_{index} objetivo={item.objective:.6f} kpis={kpis} "
+                f"fallas={failure_note(item.kpis)} json={_prompt_json(item)}"
+            )
     lines.append(
-        "Sobre politica_1, haz de 2 a 4 cambios locales. "
-        "Uno de ellos es pm_wear_threshold: escribe un umbral para M1, M2, M3, M4 y M5, "
-        "cada uno entre 0.30 y 0.95. Fija version=1. Mantén el resto de politica_1."
+        "pm_wear_threshold: un número por máquina M1 a M5, entre 0.30 y 0.95. "
+        f"El ausente vale {DEFAULT_PM_THRESHOLD:.2f}. "
+        f"El desgaste donde se concentran las fallas está cerca de {midpoint:.2f}, "
+        "según la calibración."
     )
+    lines.append(_ask(kind, has_top=bool(top)))
     return "\n".join(lines)
 
 
