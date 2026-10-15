@@ -440,3 +440,71 @@ Esos tres números, y el resto de KPIs de train, holdout y estrés, coinciden co
 `pm_wear_threshold` vacío, 0 reglas. El one-shot ganador es WEIGHTED con pesos (0.4, 0.35,
 0.25), `max_pm_per_shift=2`, umbrales 0.65/0.70/0.75/0.80/0.85 y 5 reglas. `LLM_MODEL` sigue
 en `Qwen/Qwen3-8B`.
+
+**Esta fila del bucle no es la oficial.** El job se quedó en la regla fija (bug de clones del
+top-k, corregido en `476e8cf`). La corrida oficial del bucle con planta calibrada es la
+sesión GPU 4, más abajo.
+
+## Miércoles 14, sesión GPU 4 (oficial, planta calibrada)
+
+**Corrida oficial del bucle con planta calibrada** (`failure_midpoint` 0.95,
+`failure_steepness` 18). Los objetivos se comparan con la sección «Corte de calibración» (misma
+planta); no con GPU 2 ni con las tablas de midpoint 0.72.
+
+Perfil `default`, seed 1, holdout 300, `SIM_WORKERS=16`, `LLM_MODEL=Qwen/Qwen3-8B` por el
+túnel `http://127.0.0.1:8000/v1`. El bucle es el job
+`285d1787-5d7c-464a-9897-4c585663f088`: `started_at` 2026-10-14 18:28:47−06, `finished_at`
+18:44:07−06 (**919.5 s**). `llm_source=vllm`, commit `476e8cf`. De 300 propuestas con
+resultado de validación, **262 válidas y 38 inválidas** (la ronda 2 sola aportó 34; ver
+pendiente abajo). `simulations_total` del job es **48_540** (47_340 de entrenamiento =
+263 políticas × 180, más 1_200 de holdout y estrés). La curva de entrenamiento cierra en
+**47_340**, no en 69_300: hubo menos políticas válidas que el techo N×R. La regla fija y
+Optuna son las del corte (mismas semillas, misma planta). El one-shot de la tabla es el de
+vLLM en planta calibrada (384/384 válidas, `best_objective` 1.2318).
+
+Tabla que imprimió `eval.efficiency` (`bench/results/efficiency_20261015.json`, umbral
+`0.7858 + 0.9*(1.5188 − 0.7858) = 1.4455`). El IC de holdout es el bootstrap de 2000
+remuestreos con `PCG64(0)`.
+
+| método | train | holdout | IC 95% | % a tiempo | sims | sims al 90% | notas |
+|---|---:|---:|---|---:|---:|---|---|
+| regla fija | 0.7858 | 0.7725 | [0.7431, 0.8017] | 50.6% | 180 | no alcanza | definitivo |
+| Optuna TPE | 1.5188 | 1.5126 | [1.5048, 1.5198] | 99.9% | 69_300 | 5_760 | definitivo |
+| LLM sin retroalimentación | 1.2318 | 1.2259 | [1.2167, 1.2349] | 91.4% | 69_300 | no alcanza | vLLM real |
+| bucle con retroalimentación | 1.3810 | 1.3863 | [1.3705, 1.4014] | 98.8% | 48_540 | no alcanza | **oficial**, vLLM real |
+
+Precisión del JSON, sin redondear: bucle `best_objective` **1.3809907221951065** al cierre
+(47_340 sims de train). One-shot **1.2317665500868358**. Optuna **1.5188378682250157**.
+Ningún método con LLM cruza el umbral 1.4455373171414716. El bucle le saca 0.15 al
+one-shot en train y 0.16 en holdout; Optuna sigue arriba en objetivo (1.52 vs 1.38) y llega
+al umbral en 5_760 sims.
+
+| simulaciones | 180 | 8_280 | 25_200 | 31_860 | 37_440 | 41_940 | 47_340 |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| bucle, mejor hasta ahí | 0.7858 | 1.3565 | 1.3631 | 1.3686 | 1.3766 | 1.3768 | 1.3810 |
+
+| simulaciones | 180 | 8_820 | 26_100 | 34_740 | 52_020 | 69_300 |
+|---|---:|---:|---:|---:|---:|---:|
+| one-shot, mejor hasta ahí | 0.7858 | 1.0992 | 1.1514 | 1.1953 | 1.2318 | 1.2318 |
+
+Holdout del bucle en la tarjeta (`operator_card_285d1787-…json`), objetivo
+1.3862772356985602, IC guardado por el job [1.3709379596738258, 1.4016165117232946], % a
+tiempo **0.9884149935550874**. Regla fija en el mismo holdout: 0.5057068010861212 a tiempo.
+El titular de la tarjeta es **50.6% → 98.8%** a tiempo en semillas que la búsqueda no vio.
+En estrés (+30% fallas, demanda ×1.5) fija 0.1305 y mejor 0.4528 a tiempo; el hueco lo lleva
+el throughput (965.3 vs 747.9), no el % a tiempo.
+
+La ganadora es `CRITICAL_RATIO` con pesos (setup 0.3, due_date 0.3, wear_risk 0.4),
+`max_pm_per_shift=1`, `pm_wear_threshold` vacío, 5 reglas (`PRIORITIZE_PRODUCT` por máquina
+con `wear_gt` 0.95/0.94/0.93/0.96/0.92). El one-shot ganador sigue siendo el WEIGHTED del
+corte. `LLM_MODEL` sigue en `Qwen/Qwen3-8B`.
+
+### Pendiente: ronda 2 (34 inválidas), sin GPU
+
+En la **ronda 2** del bucle (segunda de propuestas LLM; 15 válidas, **34 inválidas**) casi
+todas fallan el mismo chequeo de Pydantic: `rules.*.if` con `machine: null` y
+`product_waiting: null` (“la condición debe incluir al menos un campo”). Hay 4 inválidas más
+en la ronda 3; el resto de rondas salió limpio (38 inválidas en total). **Pendiente a revisar
+mañana, sin GPU:** mirar el prompt / el schema guiado / el postproceso que deja condiciones
+vacías. No bloquea la tarjeta ni la UI: los números de arriba son los que salieron y quedan
+como oficiales.
