@@ -33,6 +33,12 @@ def create_app(database_url: str | None = None) -> FastAPI:
     app.state.database_url = database_url
     app.state.decisions = DecisionLog()
 
+    @app.middleware("http")
+    async def replay_only(request: Request, call_next):
+        if _replay_blocks(request.method, request.url.path):
+            return JSONResponse({"error": "replay_only"}, status_code=503)
+        return await call_next(request)
+
     @app.get("/healthz")
     def healthz() -> dict[str, str]:
         return {"status": "ok"}
@@ -78,6 +84,12 @@ def create_app(database_url: str | None = None) -> FastAPI:
             raise HTTPException(status_code=404, detail="not found") from None
         return JSONResponse(payload)
 
+    @app.post("/jobs")
+    def create_job() -> JSONResponse:
+        from worker.enqueue import enqueue
+
+        return JSONResponse({"job_id": enqueue("search")})
+
     @app.post("/policies/{policy_id}/approve")
     async def approve(policy_id: uuid.UUID, request: Request):
         return await _decide(policy_id, request, "approved")
@@ -106,6 +118,14 @@ def create_app(database_url: str | None = None) -> FastAPI:
         return TEMPLATES.TemplateResponse(request, "decision.html", page)
 
     return app
+
+
+def _replay_blocks(method: str, path: str) -> bool:
+    """En replay se lee la corrida congelada. Encolar o llamar al LLM no está disponible."""
+    if Settings().MODE != "replay":
+        return False
+    normalized = path.rstrip("/") or "/"
+    return method == "POST" and normalized == "/jobs"
 
 
 def _require_admin(request: Request) -> None:

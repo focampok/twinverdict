@@ -85,6 +85,22 @@ def test_efficiency_endpoint_and_chart_canvas() -> None:
     assert "—" in page.text
 
 
+def test_replay_serves_the_card_without_postgres_and_blocks_jobs(monkeypatch) -> None:
+    monkeypatch.setenv("MODE", "replay")
+    monkeypatch.setenv("REPLAY_JOB_ID", OFFICIAL_JOB_ID)
+    url = "postgresql+psycopg://planta:planta@127.0.0.1:1/nope"
+    with TestClient(create_app(url)) as client:
+        page = client.get("/")
+        assert page.status_code == 200
+        assert "REPLAY" in page.text
+        assert "A tiempo en holdout" in page.text
+        assert client.get("/healthz").status_code == 200
+        assert client.get("/api/efficiency").status_code == 200
+        blocked = client.post("/jobs")
+    assert blocked.status_code == 503
+    assert blocked.json() == {"error": "replay_only"}
+
+
 def test_replay_json_comes_from_disk() -> None:
     with TestClient(create_app()) as client:
         response = client.get(f"/api/replay/{OFFICIAL_JOB_ID}")
