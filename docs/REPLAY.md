@@ -98,7 +98,7 @@ diferencia es el método del intervalo, no los datos.
 - `numbers`: plano `{nombre: valor}` con todo lo anterior más los umbrales por máquina y los
   deltas. El jueves `guard/numbers.py` verifica el texto contra este mapa; por eso
   **ningún número de la tarjeta está escrito a mano**, y hay un test que los recomputa desde
-  `metrics` y los compara uno a uno.
+  `metrics` y los compara uno a uno. El texto de la UI pasa por `guard/numbers.py`.
 
 ## Operación
 
