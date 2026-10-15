@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block body %}
+  <p class="provenance">vLLM real (Qwen3-8B), planta calibrada</p>
+  {% if mode == "replay" %}
+    <p class="badge">REPLAY</p>
+  {% endif %}
+  {% if error %}
+    <p class="error">{{ error }}</p>
+  {% else %}
+    <h1>{{ headline }}</h1>
+    <p class="secondary">{{ objective_ci }}</p>
+    <p>{{ body }}</p>
+    {% if policy_id %}
+      {% include "decision.html" %}
+    {% endif %}
+  {% endif %}
+{% endblock %}

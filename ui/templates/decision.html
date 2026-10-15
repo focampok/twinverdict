@@ -1,0 +1,25 @@
+<div id="decision">
+  <p>{{ decision_label }}</p>
+  {% if decision_reason %}
+    <p>Motivo: {{ decision_reason }}</p>
+  {% endif %}
+  {% if policy_id %}
+    <form>
+      <input name="reason" type="text" placeholder="Motivo, opcional" />
+      <button
+        type="button"
+        hx-post="/policies/{{ policy_id }}/approve"
+        hx-target="#decision"
+        hx-swap="outerHTML"
+        hx-include="closest form"
+      >Aprobar</button>
+      <button
+        type="button"
+        hx-post="/policies/{{ policy_id }}/reject"
+        hx-target="#decision"
+        hx-swap="outerHTML"
+        hx-include="closest form"
+      >Rechazar</button>
+    </form>
+  {% endif %}
+</div>
