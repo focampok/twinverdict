@@ -16,6 +16,8 @@ from starlette.templating import Jinja2Templates
 
 from api.operator import (
     DecisionLog,
+    efficiency_rows,
+    load_efficiency,
     load_replay,
     operator_context,
     stamp_approval,
@@ -54,7 +56,19 @@ def create_app(database_url: str | None = None) -> FastAPI:
         policy_id = winning_policy_id(settings.REPLAY_JOB_ID)
         decision = app.state.decisions.get(policy_id) if policy_id else None
         page = operator_context(settings.REPLAY_JOB_ID, settings.MODE, decision)
+        try:
+            page["efficiency_rows"] = efficiency_rows(load_efficiency())
+        except (FileNotFoundError, json.JSONDecodeError):
+            page["efficiency_rows"] = []
         return TEMPLATES.TemplateResponse(request, "operator.html", page)
+
+    @app.get("/api/efficiency")
+    def efficiency() -> JSONResponse:
+        try:
+            payload = load_efficiency()
+        except FileNotFoundError:
+            raise HTTPException(status_code=404, detail="not found") from None
+        return JSONResponse(payload)
 
     @app.get("/api/replay/{job_id}")
     def replay(job_id: uuid.UUID) -> JSONResponse:

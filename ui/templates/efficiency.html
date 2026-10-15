@@ -1,0 +1,82 @@
+<section>
+  <h2>Eficiencia</h2>
+  <canvas id="efficiency-chart" width="800" height="320"></canvas>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>método</th>
+          <th>train</th>
+          <th>holdout</th>
+          <th>IC 95%</th>
+          <th>% a tiempo holdout</th>
+          <th>sims</th>
+          <th>sims al 90%</th>
+          <th>fuente</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in efficiency_rows %}
+          <tr>
+            <td>{{ row.name }}</td>
+            <td>{{ row.train }}</td>
+            <td>{{ row.holdout }}</td>
+            <td>{{ row.ci }}</td>
+            <td>{{ row.on_time }}</td>
+            <td>{{ row.sims }}</td>
+            <td>{{ row.sims_at_90 }}</td>
+            <td>{{ row.source }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="honesty">
+    Los números del bucle y del one-shot son vLLM real (Qwen3-8B), planta calibrada; no son el mock.
+    Optuna sigue por delante en objetivo compuesto; el bucle le gana al one-shot y entrega el salto de
+    % a tiempo. El objetivo compuesto no está acotado a 0–1 y no se compara entre plantas distintas.
+    La calibración es de forma, con un dataset público; no es un gemelo de una fábrica concreta ni
+    promete un despliegue real. En estrés el hueco lo lleva el throughput, no el % a tiempo.
+  </p>
+</section>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.6/dist/chart.umd.min.js"></script>
+<script>
+  const chartColors = ["#444444", "#0b6e4f", "#b45309", "#1d4e89"];
+  fetch("/api/efficiency")
+    .then((response) => response.json())
+    .then((report) => {
+      const methods = report.methods || [];
+      const xs = methods.flatMap((method) => method.points.map((point) => point[0]));
+      const minX = Math.min(...xs);
+      const maxX = Math.max(...xs);
+      const series = methods.map((method, index) => ({
+        label: method.name,
+        data: method.points.map((point) => ({ x: point[0], y: point[1] })),
+        borderColor: chartColors[index % chartColors.length],
+        pointRadius: method.points.length < 3 ? 4 : 0,
+        tension: 0,
+      }));
+      series.push({
+        label: "umbral 90%",
+        data: [
+          { x: minX, y: report.target },
+          { x: maxX, y: report.target },
+        ],
+        borderColor: "#8a1f1f",
+        borderDash: [6, 4],
+        pointRadius: 0,
+      });
+      new Chart(document.getElementById("efficiency-chart"), {
+        type: "line",
+        data: { datasets: series },
+        options: {
+          animation: false,
+          plugins: { legend: { position: "bottom" } },
+          scales: {
+            x: { type: "linear", title: { display: true, text: "simulaciones" } },
+            y: { title: { display: true, text: "mejor objetivo" } },
+          },
+        },
+      });
+    });
+</script>

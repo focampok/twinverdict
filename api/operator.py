@@ -17,6 +17,8 @@ from db.session import get_engine
 from guard.numbers import UnverifiedNumbers, card_text, verify
 
 RESULTS = Path(__file__).resolve().parents[1] / "bench" / "results"
+EFFICIENCY_FILE = RESULTS / "efficiency_20261015.json"
+MISSING = "—"
 DecisionStatus = Literal["approved", "rejected"]
 
 
@@ -138,6 +140,63 @@ def _objective_ci(numbers: dict[str, float]) -> str:
         f"{fixed} [{fixed_low}, {fixed_high}]; "
         f"mejor política {best} [{best_low}, {best_high}]."
     )
+
+
+def load_efficiency() -> dict[str, Any]:
+    """JSON oficial de GPU 4. No usa efficiency_20261014.json."""
+    if not EFFICIENCY_FILE.is_file():
+        raise FileNotFoundError(EFFICIENCY_FILE)
+    return _read_json(str(EFFICIENCY_FILE))
+
+
+def efficiency_rows(report: dict[str, Any]) -> list[dict[str, str]]:
+    """Celdas de la tabla. Un valor ausente queda como rayita."""
+    rows: list[dict[str, str]] = []
+    for method in report.get("methods") or []:
+        holdout = method.get("holdout") or {}
+        rows.append(
+            {
+                "name": _text(method.get("name")),
+                "train": _num(method.get("best_train")),
+                "holdout": _num(holdout.get("objective")),
+                "ci": _interval(holdout.get("ci_low"), holdout.get("ci_high")),
+                "on_time": _percent(holdout.get("on_time_rate")),
+                "sims": _sims(method.get("simulations")),
+                "sims_at_90": _sims(method.get("sims_at_target")),
+                "source": _text(method.get("note") or method.get("source")),
+            }
+        )
+    return rows
+
+
+def _text(value: object) -> str:
+    if value is None or value == "":
+        return MISSING
+    return str(value)
+
+
+def _num(value: object) -> str:
+    if not isinstance(value, int | float) or isinstance(value, bool):
+        return MISSING
+    return f"{float(value):.4f}"
+
+
+def _percent(value: object) -> str:
+    if not isinstance(value, int | float) or isinstance(value, bool):
+        return MISSING
+    return f"{float(value) * 100:.1f}%"
+
+
+def _sims(value: object) -> str:
+    if not isinstance(value, int | float) or isinstance(value, bool):
+        return MISSING
+    return str(int(value))
+
+
+def _interval(low: object, high: object) -> str:
+    if _num(low) == MISSING or _num(high) == MISSING:
+        return MISSING
+    return f"{_num(low)}–{_num(high)}"
 
 
 def _measured(value: float) -> str:

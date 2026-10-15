@@ -49,8 +49,40 @@ def test_verify_failure_hides_the_card_text(monkeypatch) -> None:
         response = client.get("/")
     assert response.status_code == 200
     assert "El texto no se muestra" in response.text
-    assert "50.6%" not in response.text
-    assert "98.8%" not in response.text
+    assert "A tiempo en holdout" not in response.text
+    assert "Política ganadora" not in response.text
+
+
+def test_efficiency_endpoint_and_chart_canvas() -> None:
+    with TestClient(create_app()) as client:
+        response = client.get("/api/efficiency")
+        page = client.get("/")
+    assert response.status_code == 200
+    payload = response.json()
+    assert {
+        "date",
+        "profile",
+        "seed",
+        "scenario",
+        "llm_source",
+        "k",
+        "target",
+        "best_global",
+        "fixed",
+        "methods",
+    } <= set(payload)
+    assert payload["date"] == "20261015"
+    assert [item["name"] for item in payload["methods"]] == [
+        "regla fija",
+        "Optuna TPE",
+        "LLM sin retroalimentación",
+        "bucle con retroalimentación",
+    ]
+    assert '<canvas id="efficiency-chart"' in page.text
+    assert "Eficiencia" in page.text
+    assert "umbral 90%" in page.text
+    assert "dataset público" in page.text
+    assert "—" in page.text
 
 
 def test_replay_json_comes_from_disk() -> None:
