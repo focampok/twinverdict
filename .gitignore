@@ -19,9 +19,10 @@ venv/
 
 # Resultados generados por los benchmarks
 bench/results/*.json
-# Excepto la corrida congelada y la tarjeta de operador: son el insumo de la UI del jueves.
+# Excepto la corrida congelada, la tarjeta y la curva de eficiencia: insumo de la UI.
 !bench/results/replay_*.json
 !bench/results/operator_card_*.json
+!bench/results/efficiency_*.json
 
 # Datasets descargados (bench/download_ai4i.py). No se versionan.
 data/raw/

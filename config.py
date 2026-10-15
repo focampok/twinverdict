@@ -30,6 +30,8 @@ class Settings(BaseSettings):
 
     DATABASE_URL: str = "postgresql+psycopg://planta:planta@localhost:5432/planta"
     MODE: Literal["live", "replay"] = "live"
+    # Corrida oficial de la demo. c43bd2f0 queda versionada como histórico.
+    REPLAY_JOB_ID: str = "285d1787-5d7c-464a-9897-4c585663f088"
     LLM_BASE_URL: str = "http://localhost:8001/v1"
     # Qwen3-8B es el modelo por defecto. Qwen3-32B se evalúa por calidad de política.
     LLM_MODEL: str = "Qwen/Qwen3-8B"
