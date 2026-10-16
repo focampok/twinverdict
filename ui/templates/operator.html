@@ -1,8 +1,8 @@
 {% extends "base.html" %}
 {% block body %}
-  <p class="provenance">vLLM real (Qwen3-8B), planta calibrada</p>
+  <p class="provenance">Real vLLM (Qwen3-8B), calibrated plant</p>
   {% if mode == "replay" %}
-    <p class="badge">REPLAY</p>
+    <p class="badge" title="Results recorded from a real search run; the GPU is off during judging.">Recorded run · real vLLM (Qwen3-8B on MI300X)</p>
   {% endif %}
   {% if error %}
     <p class="error">{{ error }}</p>

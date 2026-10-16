@@ -8,7 +8,7 @@ Este documento lista qué queda guardado, dónde, quién lo lee y qué huecos ha
 1. `cp .env.example .env` con `MODE=replay` y `REPLAY_JOB_ID=285d1787-5d7c-464a-9897-4c585663f088`.
 2. `make setup && make db`.
 3. `make web`.
-4. Abrir http://localhost:8000/ y ver la tarjeta, el badge REPLAY y la curva.
+4. Abrir http://localhost:8000/ y ver la tarjeta, el badge "Recorded run · real vLLM (Qwen3-8B on MI300X)" y la curva.
 5. Sin GPU ni LLM: la tarjeta y la curva salen de los JSON versionados; `POST /jobs` responde 503.
 
 ## Dónde vive cada cosa

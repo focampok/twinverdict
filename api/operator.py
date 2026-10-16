@@ -90,7 +90,7 @@ def operator_context(
             raise FileNotFoundError(card_path)
         card = _read_json(str(card_path))
     except (ValueError, FileNotFoundError, json.JSONDecodeError):
-        page["error"] = "No está la tarjeta de esta corrida en disco."
+        page["error"] = "This run's card is not on disk."
         return page
     policy_id = winning_policy_id(str(card_id))
     numbers = {key: float(value) for key, value in card["numbers"].items()}
@@ -104,7 +104,7 @@ def operator_context(
         rendered = None
         objective_ci = ""
     if findings or rendered is None:
-        page["error"] = "El texto no se muestra. " + " ".join(findings)
+        page["error"] = "The text is hidden. " + " ".join(findings)
         return page
     page.update(
         headline=rendered["headline"],
@@ -122,10 +122,10 @@ def _read_json(path: str) -> dict[str, Any]:
 
 def _label(decision: dict[str, str | None] | None) -> str:
     if decision is None:
-        return "Pendiente"
+        return "Pending"
     if decision["status"] == "approved":
-        return "Aprobada"
-    return "Rechazada"
+        return "Approved"
+    return "Rejected"
 
 
 def _objective_ci(numbers: dict[str, float]) -> str:
@@ -136,9 +136,9 @@ def _objective_ci(numbers: dict[str, float]) -> str:
     best_low = _measured(numbers["objective_best_holdout_ci_low"])
     best_high = _measured(numbers["objective_best_holdout_ci_high"])
     return (
-        "Intervalo del objetivo en holdout: regla fija "
+        "Holdout objective interval: fixed rule "
         f"{fixed} [{fixed_low}, {fixed_high}]; "
-        f"mejor política {best} [{best_low}, {best_high}]."
+        f"best policy {best} [{best_low}, {best_high}]."
     )
 
 
@@ -156,17 +156,31 @@ def efficiency_rows(report: dict[str, Any]) -> list[dict[str, str]]:
         holdout = method.get("holdout") or {}
         rows.append(
             {
-                "name": _text(method.get("name")),
+                "name": _display(method.get("name")),
                 "train": _num(method.get("best_train")),
                 "holdout": _num(holdout.get("objective")),
                 "ci": _interval(holdout.get("ci_low"), holdout.get("ci_high")),
                 "on_time": _percent(holdout.get("on_time_rate")),
                 "sims": _sims(method.get("simulations")),
                 "sims_at_90": _sims(method.get("sims_at_target")),
-                "source": _text(method.get("note") or method.get("source")),
+                "source": _display(method.get("note") or method.get("source")),
             }
         )
     return rows
+
+
+_DISPLAY = {
+    "regla fija": "Fixed rule",
+    "LLM sin retroalimentación": "LLM without feedback",
+    "bucle con retroalimentación": "Loop with feedback",
+    "definitivo": "final",
+    "vLLM real": "real vLLM",
+}
+
+
+def _display(value: object) -> str:
+    text = _text(value)
+    return _DISPLAY.get(text, text)
 
 
 def _text(value: object) -> str:

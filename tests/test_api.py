@@ -28,14 +28,17 @@ def test_replay_index_shows_the_operator_card(monkeypatch) -> None:
     with TestClient(create_app()) as client:
         response = client.get("/")
     assert response.status_code == 200
-    assert "REPLAY" in response.text
+    assert "Recorded run · real vLLM (Qwen3-8B on MI300X)" in response.text
+    assert (
+        "Results recorded from a real search run; the GPU is off during judging." in response.text
+    )
     assert "%" in response.text
-    assert "vLLM real (Qwen3-8B), planta calibrada" in response.text
-    assert "A tiempo en holdout" in response.text
-    assert "Intervalo del objetivo" in response.text
-    assert "Política ganadora" in response.text
-    assert "estrés" in response.text
-    assert "El texto no se muestra" not in response.text
+    assert "Real vLLM (Qwen3-8B), calibrated plant" in response.text
+    assert "On time in holdout" in response.text
+    assert "Holdout objective interval" in response.text
+    assert "Winning policy" in response.text
+    assert "Under stress" in response.text
+    assert "The text is hidden" not in response.text
 
 
 def test_verify_failure_hides_the_card_text(monkeypatch) -> None:
@@ -43,14 +46,14 @@ def test_verify_failure_hides_the_card_text(monkeypatch) -> None:
     monkeypatch.setenv("REPLAY_JOB_ID", OFFICIAL_JOB_ID)
     monkeypatch.setattr(
         "api.operator.verify",
-        lambda text, numbers, **kwargs: ["número fuera de la tarjeta: 85%"],
+        lambda text, numbers, **kwargs: ["number not on the card: 85%"],
     )
     with TestClient(create_app()) as client:
         response = client.get("/")
     assert response.status_code == 200
-    assert "El texto no se muestra" in response.text
-    assert "A tiempo en holdout" not in response.text
-    assert "Política ganadora" not in response.text
+    assert "The text is hidden" in response.text
+    assert "On time in holdout" not in response.text
+    assert "Winning policy" not in response.text
 
 
 def test_efficiency_endpoint_and_chart_canvas() -> None:
@@ -79,9 +82,10 @@ def test_efficiency_endpoint_and_chart_canvas() -> None:
         "bucle con retroalimentación",
     ]
     assert '<canvas id="efficiency-chart"' in page.text
-    assert "Eficiencia" in page.text
-    assert "umbral 90%" in page.text
-    assert "dataset público" in page.text
+    assert "Efficiency" in page.text
+    assert "90% threshold" in page.text
+    assert "public dataset" in page.text
+    assert "Fixed rule" in page.text
     assert "—" in page.text
 
 
@@ -92,8 +96,8 @@ def test_replay_serves_the_card_without_postgres_and_blocks_jobs(monkeypatch) ->
     with TestClient(create_app(url)) as client:
         page = client.get("/")
         assert page.status_code == 200
-        assert "REPLAY" in page.text
-        assert "A tiempo en holdout" in page.text
+        assert "Recorded run · real vLLM (Qwen3-8B on MI300X)" in page.text
+        assert "On time in holdout" in page.text
         assert client.get("/healthz").status_code == 200
         assert client.get("/api/efficiency").status_code == 200
         blocked = client.post("/jobs")
@@ -129,10 +133,10 @@ def test_approve_requires_admin_token_and_persists(monkeypatch) -> None:
             json={"reason": "lista para el turno"},
         )
         assert ok.status_code == 200
-        assert "Aprobada" in ok.text
+        assert "Approved" in ok.text
         assert "lista para el turno" in ok.text
         page = client.get("/")
-        assert "Aprobada" in page.text
+        assert "Approved" in page.text
 
 
 def test_reject_with_token(monkeypatch) -> None:
@@ -143,4 +147,4 @@ def test_reject_with_token(monkeypatch) -> None:
             headers={"ADMIN_TOKEN": "sekret"},
         )
     assert response.status_code == 200
-    assert "Rechazada" in response.text
+    assert "Rejected" in response.text

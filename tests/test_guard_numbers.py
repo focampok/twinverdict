@@ -43,8 +43,10 @@ def test_text_built_from_official_numbers_passes() -> None:
     rendered = render_card(card)
     assert set(rendered) == {"headline", "body", "numbers_used", "stress_caveat"}
     assert verify(_visible(rendered), numbers) == []
+    assert rendered["headline"].startswith("On time in holdout:")
     assert "50.6%" in rendered["headline"]
     assert "98.8%" in rendered["headline"]
+    assert rendered["body"].startswith("Winning policy:")
     assert "1.386" not in rendered["headline"]
     assert "0.772" not in rendered["headline"]
     assert "CRITICAL_RATIO" in rendered["body"]

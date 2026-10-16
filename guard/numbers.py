@@ -41,7 +41,7 @@ def verify(text: str, numbers: dict[str, float], *, rtol: float = 1e-4) -> list[
             continue
         seen.add(literal)
         if not _matches(literal, values, rtol):
-            findings.append(f"número fuera de la tarjeta: {literal}")
+            findings.append(f"number not on the card: {literal}")
     return findings
 
 
@@ -53,15 +53,13 @@ def render_card(card: dict[str, Any]) -> dict[str, Any]:
     numbers = {key: float(value) for key, value in card["numbers"].items()}
     fixed = _percent(numbers["on_time_rate_fixed_holdout"])
     best = _percent(numbers["on_time_rate_best_holdout"])
-    headline = f"A tiempo en holdout: {fixed} con la regla fija, {best} con la mejor política."
+    headline = f"On time in holdout: {fixed} with the fixed rule, {best} with the best policy."
     policy = card.get("winning_policy") or {}
-    rule = str(policy.get("dispatch_rule") or "sin regla")
+    rule = str(policy.get("dispatch_rule") or "no rule")
     pm = _plain(numbers["best_max_pm_per_shift"])
     rules = _plain(numbers["best_rules"])
     stress_caveat = _stress_caveat(numbers)
-    body = (
-        f"Política ganadora: despacho {rule}, {pm} PM por turno y {rules} reglas. {stress_caveat}"
-    )
+    body = f"Winning policy: dispatch {rule}, {pm} PM per shift and {rules} rules. {stress_caveat}"
     rendered = {
         "headline": headline,
         "body": body,
@@ -143,7 +141,7 @@ def _stress_caveat(numbers: dict[str, float]) -> str:
     throughput = _plain(numbers["delta_throughput_stress"])
     on_time = _percent(numbers["delta_on_time_stress"])
     return (
-        f"En estrés el salto de throughput es {throughput} y el de % a tiempo es {on_time}. "
-        "El hueco lo lleva el throughput, no el % a tiempo, así que la tarjeta no promete "
-        "el mismo salto bajo ese pico."
+        f"Under stress the throughput jump is {throughput} and the on-time jump is {on_time}. "
+        "The gap is throughput, not on-time, so the card does not promise the same jump "
+        "under that spike."
     )

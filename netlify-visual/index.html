@@ -36,10 +36,11 @@
       .badge {
         display: inline-block;
         margin: 0;
-        padding: 0.15rem 0.55rem;
+        padding: 0.2rem 0.55rem;
         border: 2px solid var(--text);
-        font-weight: 800;
-        letter-spacing: 0.08em;
+        font-weight: 700;
+        letter-spacing: 0.01em;
+        line-height: 1.35;
       }
       button, select {
         font: inherit;
@@ -92,7 +93,7 @@
   <body>
     <main>
       <header>
-        <p class="badge">REPLAY</p>
+        <p class="badge" title="Results recorded from a real search run; the GPU is off during judging.">Recorded run · real vLLM (Qwen3-8B on MI300X)</p>
         <h1>TwinVerdict — an LLM proposes, the simulator decides</h1>
         <p class="lede">Same demand, same seed. The only thing that changes is the policy.</p>
         <div class="live">
@@ -113,7 +114,7 @@
 
       <section>
         <h2>The evidence</h2>
-        <p class="badge">REPLAY</p>
+        <p class="badge" title="Results recorded from a real search run; the GPU is off during judging.">Recorded run · real vLLM (Qwen3-8B on MI300X)</p>
         <p class="lede">A week of the line, zoomed into the stretch where unplanned stops diverge. One playhead moves both lanes.</p>
         <div class="controls">
           <label>Seed <select id="seed"></select></label>
