@@ -1,0 +1,62 @@
+{% macro num(value, fmt) %}{% if value is none %}—{% else %}{{ fmt | format(value) }}{% endif %}{% endmacro %}
+<div
+  id="live-frame"
+  {% if polling %}
+    hx-get="/live/frame?pos={{ next_pos }}&amp;speed={{ speed }}"
+    hx-trigger="load delay:1s"
+    hx-swap="outerHTML"
+  {% endif %}
+>
+  {% if recording is none %}
+    <p class="error">No recording for this run yet.</p>
+  {% else %}
+    <p class="secondary">
+      {% if mode == "replay" %}
+        Recording started {{ started_at }}. Showing {{ recorded_at }}
+        ({{ "%.0f" | format(frame.position) }} s of {{ "%.0f" | format(frame.duration) }} s).
+      {% else %}
+        Job {{ recording.job_id }} · {{ recording.status }} · last sample {{ recorded_at }}.
+      {% endif %}
+    </p>
+    {% if mode == "replay" %}
+      <p class="speeds">
+        Speed
+        {% for option in speeds %}
+          <button
+            type="button"
+            hx-get="/live/frame?pos={{ frame.position }}&amp;speed={{ option }}"
+            hx-target="#live-frame"
+            hx-swap="outerHTML"
+            {% if option == speed %}aria-pressed="true"{% endif %}
+          >{{ option }}x</button>
+        {% endfor %}
+        {% if not polling %}
+          <button
+            type="button"
+            hx-get="/live/frame?pos=0&amp;speed={{ speed }}"
+            hx-target="#live-frame"
+            hx-swap="outerHTML"
+          >Restart</button>
+        {% endif %}
+      </p>
+    {% endif %}
+    {% set proposals = search.proposals or {} %}
+    <div class="counters">
+      <div><strong>{{ "—" if search.simulations is none else "{:,}".format(search.simulations) }}</strong><span>simulations</span></div>
+      <div><strong>{{ search.round if search.round is not none else "—" }} / {{ search.rounds_total if search.rounds_total is not none else "—" }}</strong><span>round · {{ search.phase or "—" }}</span></div>
+      <div>
+        <strong>{{ proposals.valid if proposals else "—" }} / {{ proposals.invalid if proposals else "—" }} / {{ proposals.duplicates if proposals else "—" }}</strong>
+        <span>LLM proposals valid / invalid / dup</span>
+      </div>
+      <div><strong>{{ num(vllm.tokens_per_s, "%.0f") }}</strong><span>tokens/s</span></div>
+      <div><strong>{{ num(search.best_objective, "%.4f") }}</strong><span>best objective</span></div>
+    </div>
+    <div class="gpu-now">
+      <span>Use <strong>{{ num(gpu.use_pct, "%.0f") }}%</strong></span>
+      <span>VRAM <strong>{{ num(gpu.vram_pct, "%.0f") }}%</strong></span>
+      <span>Power <strong>{{ num(gpu.power_w, "%.0f") }} W</strong></span>
+      <span>Requests in flight <strong>{{ num(vllm.requests_running, "%.0f") }}</strong></span>
+    </div>
+    <script type="application/json" id="live-series">{{ frame.series | tojson }}</script>
+  {% endif %}
+</div>

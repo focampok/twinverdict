@@ -5,6 +5,7 @@
 #   tunnel        abre el túnel SSH en segundo plano (localhost:8000)
 #   untunnel      cierra el túnel
 #   status        GPU, proceso vLLM y modelo cargado
+#   smi           JSON de rocm-smi (uso, VRAM, potencia, nombre); reusa el túnel si está abierto
 #   serve MODELO  cambia el modelo (mata vLLM y lo relanza con la misma api-key)
 #   wait          espera hasta que /v1/models responda (máx 15 min)
 #   logs [N]      últimas N líneas del log de vLLM (default 40)
@@ -26,6 +27,13 @@ case "${1:-}" in
     echo "Túnel activo: http://localhost:$PORT/v1" ;;
   untunnel)
     ssh -S "$SOCK" -O exit "$GPU_USER@$GPU_IP" 2>/dev/null && echo "Túnel cerrado." || echo "No había túnel." ;;
+  smi)
+    SMI='rocm-smi --showuse --showmemuse --showpower --showproductname --json'
+    if [ -S "$SOCK" ] && ssh -S "$SOCK" -O check "$GPU_USER@$GPU_IP" 2>/dev/null; then
+      ssh -S "$SOCK" "${SSH_OPTS[@]}" "$GPU_USER@$GPU_IP" "$SMI"
+    else
+      r "$SMI"
+    fi ;;
   status)
     r 'rocm-smi --showuse --showmemuse | grep -E "^[0-9]|GPU" ; echo "--- vLLM:"; docker exec rocm pgrep -af "vllm serve" | sed -E "s/--api-key [^ ]+/--api-key ***/" || echo "(no corre)"; echo "--- modelo:"; curl -s localhost:'"$PORT"'/v1/models -H "Authorization: Bearer $(cat /root/vllm.key)" | python3 -c "import sys,json;d=json.load(sys.stdin);print([m[\"id\"] for m in d.get(\"data\",[])] or d)" 2>/dev/null || echo "(sin respuesta)"' ;;
   serve)
@@ -44,5 +52,5 @@ case "${1:-}" in
   bench-sim)
     r 'repo="${GPU_REPO:-$HOME/twinverdict}"; test -d "$repo" || { echo "no está el repo en $repo"; exit 1; }; cd "$repo" && uv run python -m bench.sim_speed --seeds 300 --workers 18 --repeat 6' ;;
   run)  shift; r "$@" ;;
-  *) sed -n '2,12p' "$0"; exit 1 ;;
+  *) sed -n '2,13p' "$0"; exit 1 ;;
 esac

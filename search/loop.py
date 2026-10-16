@@ -8,7 +8,7 @@ import json
 import math
 import statistics
 import time
-from collections.abc import Collection
+from collections.abc import Callable, Collection
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -298,11 +298,31 @@ async def run_search(
     rng_seed: int,
     workers: int | None = None,
     holdout_seeds: int = 0,
+    progress: Callable[[dict], None] | None = None,
 ) -> SearchResult:
-    """política_0 es la regla fija. Cada ronda propone N, simula las válidas en K semillas."""
+    """política_0 es la regla fija. Cada ronda propone N, simula las válidas en K semillas.
+
+    `progress` recibe una foto acumulada (fase, ronda, propuestas, simulaciones, mejor
+    objetivo) cada vez que cambia. Solo observa: no altera la búsqueda.
+    """
     pool_workers = Settings().SIM_WORKERS if workers is None else workers
     train_seeds = list(range(rng_seed, rng_seed + config.K))
     sim_seconds = 0.0
+    counts = {"valid": 0, "invalid": 0, "duplicates": 0}
+
+    def _report(phase: str, round_index: int, simulations: int, best: float | None) -> None:
+        if progress is None:
+            return
+        progress(
+            {
+                "phase": phase,
+                "round": round_index,
+                "rounds_total": config.R,
+                "proposals": dict(counts),
+                "simulations": simulations,
+                "best_objective": best,
+            }
+        )
 
     def _timed(
         policy: Policy,
@@ -318,13 +338,16 @@ async def run_search(
         sim_seconds += time.perf_counter() - started
         return scored
 
+    _report("fixed", 0, 0, None)
     fixed = _timed(fixed_rule_policy(), train_seeds, "fixed", 0)
     pool = [fixed]
     policies = [fixed]
     rounds: list[RoundResult] = []
     sims = config.K
+    best_so_far = fixed.objective
     local_n, free_n = local_and_free_counts(config.N)
     for round_index in range(1, config.R + 1):
+        _report("proposing", round_index, sims, best_so_far)
         top = dedupe_top(sorted(pool, key=_rank_key), config.TOP_K)
         blocked = {simulator_key(item.policy) for item in pool}
         base = rng_seed + round_index * 10_000
@@ -347,9 +370,16 @@ async def run_search(
         proposed = _join_proposals(local, free)
         retries = retries_local + retries_free
         prompt = f"{local_prompt}\n\n{free_prompt}"
+        counts["valid"] += len(proposed.valid)
+        counts["invalid"] += len(proposed.invalid)
+        counts["duplicates"] += retries
+        _report("simulating", round_index, sims, best_so_far)
         evaluated: list[EvaluatedPolicy] = []
         for policy in proposed.valid:
-            evaluated.append(_timed(policy, train_seeds, "llm", round_index))
+            scored = _timed(policy, train_seeds, "llm", round_index)
+            evaluated.append(scored)
+            best_so_far = max(best_so_far, scored.objective)
+            _report("simulating", round_index, sims + len(evaluated) * config.K, best_so_far)
         sims += len(evaluated) * config.K
         pool.extend(evaluated)
         policies.extend(evaluated)
@@ -378,6 +408,7 @@ async def run_search(
     fixed_stress = None
     hold_seeds: list[int] = []
     if holdout_seeds > 0:
+        _report("holdout", config.R, sims, best.objective)
         hold_seeds = list(range(1_000_000 + rng_seed, 1_000_000 + rng_seed + holdout_seeds))
         holdout = _timed(best.policy, hold_seeds, best.source, -1)
         stress = _timed(best.policy, hold_seeds, best.source, -2, stressed=True)
@@ -386,6 +417,7 @@ async def run_search(
         # Las cuatro evaluaciones quedan fuera del presupuesto de entrenamiento y se suman a
         # simulations_total, igual que el holdout de siempre (misma convención).
         sims += holdout_seeds * 4
+    _report("done", config.R, sims, best.objective)
     return SearchResult(
         policies=policies,
         rounds=rounds,

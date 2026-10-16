@@ -19,10 +19,11 @@ from llm.client import LLMClient
 from policy.schema import fixed_rule_policy
 from search.config import PROFILES, SearchConfig
 from search.loop import run_search
-from search.repro import build_search_config
+from search.repro import build_search_config, llm_source
 from search.store import persist_search
 from sim.objective import composite_objective, load_objective_weights
 from sim.runner import Scenario, simulate
+from worker.telemetry import LiveRecorder, recorder_from_settings
 
 BASELINE_SEEDS = 10
 
@@ -105,6 +106,17 @@ def _search_config(params: dict) -> SearchConfig:
     return config
 
 
+def _recorder(job_id: uuid.UUID) -> LiveRecorder | None:
+    """Solo un job real graba telemetría: MODE=live contra vLLM, nunca contra el mock."""
+    settings = Settings()
+    if settings.MODE != "live" or llm_source(settings.LLM_BASE_URL, settings.LLM_MODEL) != "vllm":
+        return None
+    recorder = recorder_from_settings(str(job_id), settings)
+    recorder.start()
+    print(f"telemetry -> {recorder.path}", flush=True)
+    return recorder
+
+
 def _run_search(session: Session, job_id: uuid.UUID) -> None:
     job = session.get(Job, job_id)
     assert job is not None
@@ -115,6 +127,7 @@ def _run_search(session: Session, job_id: uuid.UUID) -> None:
     workers = int(params["workers"]) if params.get("workers") is not None else None
     holdout = int(params.get("holdout", 0))
     model = Settings().LLM_MODEL
+    recorder = _recorder(job_id)
 
     async def _go():
         client = LLMClient.from_settings(concurrency=max(1, config.N))
@@ -126,11 +139,19 @@ def _run_search(session: Session, job_id: uuid.UUID) -> None:
                 seed,
                 workers=workers,
                 holdout_seeds=holdout,
+                progress=None if recorder is None else recorder.update,
             )
         finally:
             await client.aclose()
 
-    result = asyncio.run(_go())
+    try:
+        result = asyncio.run(_go())
+    except BaseException:
+        if recorder is not None:
+            recorder.stop("failed")
+        raise
+    if recorder is not None:
+        recorder.stop("done")
     repro = build_search_config(config, result, model)
     persist_search(
         session,

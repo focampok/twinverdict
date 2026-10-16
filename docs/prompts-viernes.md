@@ -160,6 +160,63 @@ portada. Números solo de operator_card / BENCHMARKS. Commit
 Ensayo con `make web` local o URL Railway. Orden del guion. Export MP4. Dejar margen
 para el sábado (polish + submit lablab; deadline dom 18 oct 09:00 GT).
 
+## Sesión GPU5: grabar el «Live run»
+
+Objetivo: una corrida completa del bucle con telemetría grabada, para que `/live` la
+reproduzca en replay con el badge «Recorded run · real vLLM on MI300X». Mismo reparto que
+GPU2: la GPU solo sirve vLLM, las simulaciones corren en la laptop.
+
+Qué graba el worker (`worker/telemetry.py`), cada 2 s, en `data/replay/live_<job_id>.json`:
+`/metrics` de vLLM (tokens generados → tokens/s, peticiones en curso), el id de
+`/v1/models`, `infra/gpu/gpu.sh smi` (rocm-smi: uso %, VRAM %, potencia W, nombre) y el
+progreso del bucle (ronda, propuestas válidas/inválidas/duplicadas, simulaciones, mejor
+objetivo). Solo graba con `MODE=live` y un `LLM_BASE_URL` que no sea el mock. Si rocm-smi o
+`/metrics` fallan, ese evento lleva null y el job sigue. La api-key no se escribe en el JSON.
+
+```bash
+# 1. Panel de DigitalOcean: GPU Droplet MI300X x1, imagen vLLM 1-Click, nombre
+#    twinverdict-gpu5. Anota IP, precio y hora de arranque.
+export GPU_IP=<ip de twinverdict-gpu5>
+
+# 2. vLLM y túnel (gpu.sh smi reusa la conexión del túnel).
+infra/gpu/gpu.sh tunnel
+infra/gpu/gpu.sh serve Qwen/Qwen3-8B
+infra/gpu/gpu.sh wait
+infra/gpu/gpu.sh status
+infra/gpu/gpu.sh smi | head -c 400; echo   # tiene que ser JSON con card0
+
+# 3. Laptop: la api-key en .env (LLM_API_KEY=<la de /root/vllm.key>), nunca en el repo.
+#    El mock apagado.
+pkill -f mock_server || true
+make db
+
+# 4. Job completo con grabación. MODE=live va en la línea de make: el Makefile incluye .env
+#    (MODE=replay) y eso pisaría un export del shell. El worker imprime
+#    "telemetry -> data/replay/live_<job>.json" al empezar.
+make gpu2 MODE=live
+#    En otra terminal, opcional (el túnel ocupa el 8000):
+#    MODE=live uv run uvicorn api.main:app --port 8010  →  http://localhost:8010/live
+
+# 5. Revisar la grabación: fake=false, status=done, eventos con gpu y vllm no nulos.
+uv run python -c "import json,sys; d=json.load(open(sys.argv[1])); \
+print(d['fake'], d['status'], len(d['events']), d['model'], d['gpu_name'])" \
+  data/replay/live_<job>.json
+
+# 6. Al repo: la grabación, y el replay/tarjeta de ese job si pasa a ser la demo.
+#    Si el job nuevo reemplaza a 285d1787, apunta REPLAY_JOB_ID en .env.example,
+#    config.py y Railway. Si no, la grabación sirve solo si es del job de REPLAY_JOB_ID.
+git add data/replay/live_<job>.json
+git commit -m "data: live run telemetry from GPU5"
+
+# 7. Apagar: túnel, vLLM y destruir twinverdict-gpu5 en el panel. Anota la hora.
+infra/gpu/gpu.sh stop
+infra/gpu/gpu.sh untunnel
+```
+
+Mientras no exista la grabación real, `uv run python -m worker.telemetry --fake` escribe
+`data/replay/live_<REPLAY_JOB_ID>.fake.json` con `fake=true`. Está en `.gitignore`: no se
+versiona y la UI la muestra con «Test recording · fake data», nunca con el badge real.
+
 ## No tocar
 
 Fine-tuning · SSE salvo sobra · Google prize · re-correr bucle · cambiar BENCHMARKS ·

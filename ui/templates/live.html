@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block body %}
+  <p><a href="/">← Operator card</a></p>
+  <h1>Live run</h1>
+  {% if recording is not none and recording.fake %}
+    <p class="badge fake" title="Synthetic numbers generated with --fake to test this page.">Test recording · fake data, not a GPU session</p>
+  {% elif recording is not none and mode == "replay" %}
+    <p class="badge" title="Telemetry recorded during the search; the GPU is off during judging.">Recorded run · real vLLM on MI300X</p>
+  {% elif recording is not none %}
+    <p class="badge">Live · vLLM on MI300X</p>
+  {% endif %}
+  <p class="secondary">
+    The search at work: the LLM proposes policies, the simulator scores them.
+    Model: {{ model or "—" }}.
+  </p>
+  {% include "live_frame.html" %}
+  <section class="gpu-panel">
+    <h2>AMD Instinct MI300X · ROCm</h2>
+    {% if recording is not none and recording.gpu_name %}
+      <p class="secondary">{{ recording.gpu_name }}</p>
+    {% endif %}
+    <div class="minis">
+      <figure><figcaption>GPU use %</figcaption><canvas id="chart-use"></canvas></figure>
+      <figure><figcaption>VRAM %</figcaption><canvas id="chart-vram"></canvas></figure>
+      <figure><figcaption>Power W</figcaption><canvas id="chart-power"></canvas></figure>
+    </div>
+  </section>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.6/dist/chart.umd.min.js"></script>
+  <script>
+    (() => {
+      const specs = [
+        ["chart-use", "use_pct", "#b45309", 100],
+        ["chart-vram", "vram_pct", "#1d4e89", 100],
+        ["chart-power", "power_w", "#0b6e4f", undefined],
+      ];
+      const charts = specs.map(([id, key, color, max]) => ({
+        key,
+        chart: new Chart(document.getElementById(id), {
+          type: "line",
+          data: { datasets: [{ data: [], borderColor: color, pointRadius: 0, tension: 0, spanGaps: false }] },
+          options: {
+            animation: false,
+            plugins: { legend: { display: false } },
+            scales: {
+              x: { type: "linear", title: { display: true, text: "s" } },
+              y: { min: 0, max },
+            },
+          },
+        }),
+      }));
+      function refresh() {
+        const node = document.getElementById("live-series");
+        if (!node) return;
+        const series = JSON.parse(node.textContent);
+        for (const { key, chart } of charts) {
+          chart.data.datasets[0].data = series.t.map((t, i) => ({ x: t, y: series[key][i] }));
+          chart.update();
+        }
+      }
+      document.body.addEventListener("htmx:afterSwap", refresh);
+      refresh();
+    })();
+  </script>
+{% endblock %}

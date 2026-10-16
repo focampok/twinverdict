@@ -26,3 +26,7 @@ bench/results/*.json
 
 # Datasets descargados (bench/download_ai4i.py). No se versionan.
 data/raw/
+
+# Grabaciones de prueba de telemetría (worker.telemetry --fake). Nunca pasan por oficiales.
+data/replay/*.fake.json
+data/replay/*.tmp

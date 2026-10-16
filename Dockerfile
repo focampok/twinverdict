@@ -17,6 +17,7 @@ COPY guard guard
 COPY api api
 COPY ui ui
 COPY netlify-visual netlify-visual
+COPY data/replay data/replay
 COPY db db
 COPY worker worker
 COPY bench bench

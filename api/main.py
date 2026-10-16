@@ -21,6 +21,7 @@ from sqlalchemy import create_engine, text
 from starlette.middleware.gzip import GZipMiddleware
 from starlette.templating import Jinja2Templates
 
+from api import live
 from api.operator import (
     DecisionLog,
     efficiency_rows,
@@ -111,6 +112,23 @@ def create_app(database_url: str | None = None) -> FastAPI:
         )
         return TEMPLATES.TemplateResponse(request, "operator.html", page)
 
+    @app.get("/live")
+    def live_page(request: Request):
+        settings = Settings()
+        page = _live_context(settings.MODE, settings.REPLAY_JOB_ID, None, live.DEFAULT_SPEED)
+        return TEMPLATES.TemplateResponse(request, "live.html", page)
+
+    @app.get("/live/frame")
+    def live_frame(request: Request, pos: str = "0", speed: str = ""):
+        settings = Settings()
+        page = _live_context(
+            settings.MODE,
+            settings.REPLAY_JOB_ID,
+            live.parse_position(pos),
+            live.parse_speed(speed or live.DEFAULT_SPEED),
+        )
+        return TEMPLATES.TemplateResponse(request, "live_frame.html", page)
+
     @app.post("/api/try-policy")
     async def try_policy(request: Request) -> Response:
         htmx = request.headers.get("HX-Request") == "true"
@@ -191,6 +209,45 @@ def create_app(database_url: str | None = None) -> FastAPI:
         return TEMPLATES.TemplateResponse(request, "decision.html", page)
 
     return app
+
+
+_SEARCH_KEYS = ("phase", "round", "rounds_total", "proposals", "simulations", "best_objective")
+
+
+def _live_context(mode: str, job_id: str, position: float | None, speed: int) -> dict:
+    """En replay avanza `speed` segundos de grabación por segundo; en live muestra lo último."""
+    recording = live.replay_recording(job_id) if mode == "replay" else live.current_recording()
+    page: dict[str, Any] = {
+        "mode": mode,
+        "recording": recording,
+        "speed": speed,
+        "speeds": live.SPEEDS,
+        "polling": False,
+    }
+    if recording is None:
+        return page
+    if mode == "replay":
+        at = 0.0 if position is None else position
+        polling = at < live.duration(recording)
+        next_pos = live.next_position(at, speed)
+    else:
+        at = live.duration(recording)
+        polling = recording.get("status") == "running"
+        next_pos = at
+    shown = live.frame(recording, at)
+    event = shown["event"] or {}
+    page.update(
+        frame=shown,
+        polling=polling,
+        next_pos=next_pos,
+        search=dict.fromkeys(_SEARCH_KEYS) | (event.get("search") or {}),
+        vllm=dict.fromkeys(("tokens_per_s", "requests_running")) | (event.get("vllm") or {}),
+        gpu=dict.fromkeys(("use_pct", "vram_pct", "power_w")) | (event.get("gpu") or {}),
+        recorded_at=live.clock(event.get("ts")),
+        started_at=live.clock(recording.get("started_at")),
+        model=live.model_label(recording.get("model")),
+    )
+    return page
 
 
 def _client_key(request: Request) -> str:
