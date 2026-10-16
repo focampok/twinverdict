@@ -157,6 +157,62 @@ def _should_pm(machine: Machine, policy: Policy, now: float, config: PlantConfig
     return False
 
 
+def _span(
+    record: list[dict[str, float | str]] | None,
+    machine: str,
+    start: float,
+    end: float,
+    kind: str,
+) -> None:
+    if record is None or end <= start + 1e-9:
+        return
+    record.append({"m": machine, "start": start, "end": end, "kind": kind})
+
+
+def _cover_horizon(
+    record: list[dict[str, float | str]],
+    machines: tuple[str, ...],
+    horizon: float,
+) -> None:
+    """Cierra cada carril en [0, horizonte] y junta tramos contiguos del mismo tipo."""
+    grouped: dict[str, list[dict[str, float | str]]] = {machine: [] for machine in machines}
+    for item in record:
+        grouped[str(item["m"])].append(item)
+    record.clear()
+    for machine in machines:
+        spans = sorted(grouped[machine], key=lambda row: float(row["start"]))
+        cursor = 0.0
+        for span in spans:
+            start = float(span["start"])
+            end = min(float(span["end"]), horizon)
+            if start < cursor - 1e-6:
+                raise ValueError(f"intervalos solapados en {machine}")
+            if start > cursor + 1e-6:
+                _span(record, machine, cursor, start, "idle")
+            cursor = max(cursor, start)
+            if end <= cursor + 1e-9:
+                continue
+            kind = str(span["kind"])
+            previous = record[-1] if record else None
+            same = (
+                previous is not None
+                and previous["m"] == machine
+                and previous["kind"] == kind
+                and abs(float(previous["end"]) - cursor) <= 1e-6
+            )
+            if same and previous is not None:
+                previous["end"] = end
+            else:
+                _span(record, machine, cursor, end, kind)
+            cursor = end
+        if horizon > cursor + 1e-6:
+            previous = record[-1] if record else None
+            if previous is not None and previous["m"] == machine and previous["kind"] == "idle":
+                previous["end"] = horizon
+            else:
+                _span(record, machine, cursor, horizon, "idle")
+
+
 def _machine_loop(
     env: simpy.Environment,
     machine: Machine,
@@ -167,14 +223,17 @@ def _machine_loop(
     repair_rng: np.random.Generator,
     counters: dict[str, float],
     bounds: list[float],
+    record: list[dict[str, float | str]] | None = None,
 ) -> simpy.events.Event:
     horizon = config.horizon_min
     while env.now < horizon - 1e-9:
         if not machine.queue:
+            idle_at = env.now
             machine.wake = env.event()
             machine.waiting = True
             yield machine.wake
             machine.waiting = False
+            _span(record, machine.machine_id, idle_at, env.now, "idle")
             continue
         if _should_pm(machine, policy, env.now, config):
             step = min(config.pm_duration_min, horizon - env.now)
@@ -186,7 +245,9 @@ def _machine_loop(
             counters["pm"] += 1
             counters["planned"] += step
             counters["cost"] += config.pm_cost
+            pm_at = env.now
             yield env.timeout(step)
+            _span(record, machine.machine_id, pm_at, env.now, "pm")
             continue
         order = select_order(machine, policy, env.now, config)
         machine.queue.remove(order)
@@ -195,7 +256,9 @@ def _machine_loop(
             step = min(setup, horizon - env.now)
             if step <= 1e-9:
                 return
+            setup_at = env.now
             yield env.timeout(step)
+            _span(record, machine.machine_id, setup_at, env.now, "setup")
             if step + 1e-9 < setup:
                 return
         remaining = order.process_times[machine.idx]
@@ -220,7 +283,9 @@ def _machine_loop(
             step = remaining if fail_at is None else min(remaining, fail_at)
             step = min(step, left)
             if step > 1e-12:
+                work_at = env.now
                 yield env.timeout(step)
+                _span(record, machine.machine_id, work_at, env.now, "processing")
                 machine.wear += wear_rate * step
                 _clamp_wear(machine, bounds)
                 remaining -= step
@@ -242,7 +307,9 @@ def _machine_loop(
             repair = max(1.0, float(repair_rng.exponential(config.repair_mean_min[mode_idx])))
             repair_step = min(repair, max(0.0, horizon - env.now))
             if repair_step > 0.0:
+                down_at = env.now
                 yield env.timeout(repair_step)
+                _span(record, machine.machine_id, down_at, env.now, "down")
                 counters["unplanned"] += repair_step
             if repair_step + 1e-8 < repair or env.now >= horizon - 1e-9:
                 finished = False
@@ -261,8 +328,16 @@ def _machine_loop(
                 counters["on_time"] += 1
 
 
-def run_simulation(policy: Policy, seed: int, config: PlantConfig | None = None) -> SimResult:
-    """Corre la planta hasta el horizonte. No toca red, disco ni reloj de pared."""
+def run_simulation(
+    policy: Policy,
+    seed: int,
+    config: PlantConfig | None = None,
+    record: list[dict[str, float | str]] | None = None,
+) -> SimResult:
+    """Corre la planta hasta el horizonte. No toca red, disco ni reloj de pared.
+
+    `record=None` no anota nada. Una lista recibe intervalos y no cambia los contadores.
+    """
     cfg = config or PlantConfig()
     arrival_rng, process_rng, failure_rngs, repair_rngs = _rngs(seed, len(MACHINES))
     orders = _generate_orders(cfg, arrival_rng, process_rng)
@@ -281,11 +356,22 @@ def run_simulation(policy: Policy, seed: int, config: PlantConfig | None = None)
     for machine, fail_rng, repair_rng in zip(machines, failure_rngs, repair_rngs, strict=True):
         env.process(
             _machine_loop(
-                env, machine, machines, policy, cfg, fail_rng, repair_rng, counters, bounds
+                env,
+                machine,
+                machines,
+                policy,
+                cfg,
+                fail_rng,
+                repair_rng,
+                counters,
+                bounds,
+                record,
             )
         )
     env.process(_source(env, machines[0], orders))
     env.run(until=cfg.horizon_min)
+    if record is not None:
+        _cover_horizon(record, tuple(machine.machine_id for machine in machines), cfg.horizon_min)
     created = len(orders)
     completed = int(counters["completed"])
     on_time = int(counters["on_time"])
