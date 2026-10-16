@@ -16,6 +16,7 @@ COPY baselines baselines
 COPY guard guard
 COPY api api
 COPY ui ui
+COPY netlify-visual netlify-visual
 COPY db db
 COPY worker worker
 COPY bench bench

@@ -1,0 +1,112 @@
+<section id="try-policy">
+  <h2>Try a policy</h2>
+  <p class="secondary">
+    Build a maintenance and dispatch policy and the simulator scores it against the fixed rule and
+    the LLM's best policy, on the same seeds. No LLM is called.
+  </p>
+  <form
+    class="try-form"
+    hx-post="/api/try-policy"
+    hx-target="#try-result"
+    hx-swap="outerHTML"
+    hx-indicator="#try-running"
+    hx-disabled-elt="find button[type=submit]"
+    hx-on::before-swap="if (event.detail.xhr.status >= 400) { event.detail.shouldSwap = true; event.detail.isError = false; }"
+  >
+    <fieldset>
+      <legend>Dispatch</legend>
+      <label>Rule
+        <select name="rule" id="try-rule">
+          <option value="EDD">EDD (earliest due date)</option>
+          <option value="SPT">SPT (shortest processing time)</option>
+          <option value="CRITICAL_RATIO">CRITICAL_RATIO</option>
+          <option value="WEIGHTED">WEIGHTED</option>
+        </select>
+      </label>
+      <div id="try-weights">
+        <p class="secondary">Weights are normalized to sum 1. CRITICAL_RATIO uses them too.</p>
+        {% for key, label in [("due_date", "Due date"), ("wear_risk", "Wear risk"), ("setup", "Setup")] %}
+          <label class="slider">{{ label }}
+            <input type="range" name="w_{{ key }}" min="0" max="1" step="0.05" value="0.35" />
+            <output></output>
+          </label>
+        {% endfor %}
+      </div>
+    </fieldset>
+    <fieldset>
+      <legend>Maintenance</legend>
+      {% for machine in ["M1", "M2", "M3", "M4", "M5"] %}
+        <label class="slider">{{ machine }} PM wear threshold
+          <input type="range" name="pm_{{ machine }}" min="0.30" max="0.95" step="0.05" value="0.75" />
+          <output></output>
+        </label>
+      {% endfor %}
+      <label class="slider">Max PM per shift
+        <input type="range" name="max_pm_per_shift" min="1" max="3" step="1" value="1" />
+        <output></output>
+      </label>
+    </fieldset>
+    <input type="hidden" name="rules" id="try-rules" value="[]" />
+    <p id="try-rules-note" class="secondary" hidden></p>
+    <button type="button" data-preset="fixed">Load fixed rule</button>
+    <button type="button" data-preset="llm">Load LLM best policy</button>
+    <button type="submit">Simulate</button>
+    <span id="try-running" class="htmx-indicator secondary">Simulating…</span>
+  </form>
+  <div id="try-result"></div>
+  <script type="application/json" id="try-presets">{{ try_presets | tojson }}</script>
+</section>
+<link rel="stylesheet" href="/visual/gantt.css" />
+<script src="/visual/gantt-core.js"></script>
+<script>
+  (() => {
+    const form = document.querySelector("#try-policy form");
+    const presets = JSON.parse(document.getElementById("try-presets").textContent);
+    const rule = document.getElementById("try-rule");
+    const weights = document.getElementById("try-weights");
+    const rules = document.getElementById("try-rules");
+    const rulesNote = document.getElementById("try-rules-note");
+
+    function sync() {
+      weights.hidden = !["WEIGHTED", "CRITICAL_RATIO"].includes(rule.value);
+      for (const input of form.querySelectorAll("input[type=range]")) {
+        input.nextElementSibling.textContent = input.value;
+      }
+      const count = JSON.parse(rules.value).length;
+      rulesNote.hidden = count === 0;
+      rulesNote.textContent = `Plus ${count} if/then rules from the loaded policy, sent as they are.`;
+    }
+
+    function load(preset) {
+      rule.value = preset.rule;
+      for (const [key, value] of Object.entries(preset.weights)) {
+        form.elements[`w_${key}`].value = value;
+      }
+      for (const [machine, value] of Object.entries(preset.thresholds)) {
+        form.elements[`pm_${machine}`].value = value;
+      }
+      form.elements.max_pm_per_shift.value = preset.max_pm_per_shift;
+      rules.value = JSON.stringify(preset.rules);
+      sync();
+    }
+
+    for (const button of form.querySelectorAll("[data-preset]")) {
+      button.addEventListener("click", () => load(presets[button.dataset.preset]));
+    }
+    form.addEventListener("input", sync);
+    sync();
+
+    document.body.addEventListener("htmx:afterSwap", () => {
+      const data = document.getElementById("try-gantt-data");
+      if (!data) return;
+      const record = JSON.parse(data.textContent);
+      const baseline = record.baseline.intervals;
+      const proposed = record.proposed.intervals;
+      const window = TwinGantt.divergence(baseline, proposed, TwinGantt.horizon(baseline, proposed));
+      const view = { ...window, playhead: null };
+      TwinGantt.drawAxis(document.getElementById("try-axis"), view);
+      TwinGantt.drawLane(document.getElementById("try-lane-baseline"), baseline, view);
+      TwinGantt.drawLane(document.getElementById("try-lane-proposed"), proposed, view);
+    });
+  })();
+</script>

@@ -2,14 +2,8 @@ const RAILWAY_URL = "";
 
 const SEEDS = [1000111, 1000104, 1000176];
 const DEFAULT_SEED = 1000111;
-const WINDOW_MIN = 12 * 60;
-const STEP_MIN = 15;
-const WIDTH = 1000;
-const LABEL = 44;
-const ROW = 32;
 const PLAY_MS = 12000;
-const MACHINES = ["M1", "M2", "M3", "M4", "M5"];
-const KINDS = new Set(["processing", "setup", "pm", "down", "idle"]);
+const { WIDTH, LABEL, minutes, downSpans, downUntil } = TwinGantt;
 
 const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -25,7 +19,7 @@ const chartError = document.querySelector("#chart-error");
 
 let record = null;
 let viewStart = 0;
-let viewEnd = WINDOW_MIN;
+let viewEnd = 0;
 let marker = 0;
 let playhead = 0;
 let playing = false;
@@ -54,10 +48,6 @@ function objective(value) {
   return Number(value).toFixed(4);
 }
 
-function minutes(value) {
-  return value.toFixed(1);
-}
-
 async function fillStory() {
   const response = await fetch("data/story.json");
   if (!response.ok) throw new Error("story.json");
@@ -76,134 +66,6 @@ async function fillStory() {
       return item;
     }),
   );
-}
-
-function downSpans(intervals) {
-  return intervals.filter((row) => row.kind === "down");
-}
-
-function overlap(spans, start, end) {
-  let sum = 0;
-  for (const row of spans) {
-    const from = Math.max(row.start, start);
-    const to = Math.min(row.end, end);
-    if (to > from) sum += to - from;
-  }
-  return sum;
-}
-
-function downUntil(spans, time) {
-  return overlap(spans, 0, time);
-}
-
-function divergence(baseline, proposed, horizon) {
-  const baseDown = downSpans(baseline);
-  const proposedDown = downSpans(proposed);
-  let bestGap = -Infinity;
-  let startAt = 0;
-  for (let start = 0; start + WINDOW_MIN <= horizon + 1e-6; start += STEP_MIN) {
-    const gap = overlap(baseDown, start, start + WINDOW_MIN) - overlap(proposedDown, start, start + WINDOW_MIN);
-    if (gap > bestGap) {
-      bestGap = gap;
-      startAt = start;
-    }
-  }
-  let peakGap = -Infinity;
-  let peak = startAt;
-  const windowEnd = startAt + WINDOW_MIN;
-  for (let time = startAt; time + 60 <= windowEnd; time += 5) {
-    const gap = overlap(baseDown, time, time + 60) - overlap(proposedDown, time, time + 60);
-    if (gap > peakGap) {
-      peakGap = gap;
-      peak = time + 30;
-    }
-  }
-  return { viewStart: startAt, viewEnd: windowEnd, marker: peak };
-}
-
-function xOf(time) {
-  return LABEL + ((time - viewStart) / (viewEnd - viewStart)) * (WIDTH - LABEL);
-}
-
-function clear(node) {
-  while (node.firstChild) node.removeChild(node.firstChild);
-}
-
-function add(parent, name, attrs) {
-  const node = document.createElementNS("http://www.w3.org/2000/svg", name);
-  for (const [key, value] of Object.entries(attrs)) node.setAttribute(key, String(value));
-  parent.appendChild(node);
-  return node;
-}
-
-function drawAxis() {
-  clear(axis);
-  add(axis, "rect", { x: 0, y: 0, width: WIDTH, height: 40, fill: "var(--bg)" });
-  const markerX = xOf(marker);
-  add(axis, "line", {
-    x1: markerX,
-    x2: markerX,
-    y1: 8,
-    y2: 40,
-    stroke: "var(--pm)",
-    "stroke-width": 2,
-  });
-  const playX = xOf(playhead);
-  add(axis, "line", {
-    class: "playhead",
-    x1: playX,
-    x2: playX,
-    y1: 18,
-    y2: 40,
-    stroke: "var(--playhead)",
-    "stroke-width": 2,
-  });
-  const first = Math.ceil(viewStart / 60) * 60;
-  for (let time = first; time < viewEnd; time += 60) {
-    const x = xOf(time);
-    add(axis, "line", { x1: x, x2: x, y1: 28, y2: 40, stroke: "var(--muted)", "stroke-width": 1 });
-    const label = add(axis, "text", { x: x + 3, y: 26 });
-    label.textContent = `${time / 60} h`;
-  }
-}
-
-function drawLane(svg, intervals) {
-  clear(svg);
-  add(svg, "rect", { x: 0, y: 0, width: WIDTH, height: ROW * MACHINES.length, fill: "var(--panel)" });
-  for (const [index, machine] of MACHINES.entries()) {
-    const y = index * ROW;
-    add(svg, "text", { x: 4, y: y + 20 }).textContent = machine;
-    for (const row of intervals) {
-      if (row.m !== machine || !KINDS.has(row.kind)) continue;
-      if (row.end <= viewStart || row.start >= viewEnd) continue;
-      const start = Math.max(row.start, viewStart);
-      const end = Math.min(row.end, viewEnd);
-      const x = xOf(start);
-      const width = Math.max(0.4, xOf(end) - x);
-      add(svg, "rect", { x, y: y + 4, width, height: ROW - 8, fill: `var(--${row.kind})` });
-    }
-  }
-  const playX = xOf(playhead);
-  add(svg, "line", {
-    class: "playhead",
-    x1: playX,
-    x2: playX,
-    y1: 0,
-    y2: ROW * MACHINES.length,
-    stroke: "var(--playhead)",
-    "stroke-width": 2,
-  });
-  const markerX = xOf(marker);
-  add(svg, "line", {
-    class: "marker",
-    x1: markerX,
-    x2: markerX,
-    y1: 0,
-    y2: ROW * MACHINES.length,
-    stroke: "var(--pm)",
-    "stroke-width": 1.5,
-    "stroke-dasharray": "4 3",
-  });
 }
 
 function renderCounters(root, side) {
@@ -232,9 +94,10 @@ function renderCounters(root, side) {
 }
 
 function draw() {
-  drawAxis();
-  drawLane(laneBaseline, record.policies.baseline.intervals);
-  drawLane(laneProposed, record.policies.proposed.intervals);
+  const view = { viewStart, viewEnd, marker, playhead };
+  TwinGantt.drawAxis(axis, view);
+  TwinGantt.drawLane(laneBaseline, record.policies.baseline.intervals, view);
+  TwinGantt.drawLane(laneProposed, record.policies.proposed.intervals, view);
   renderCounters(document.querySelector("#count-baseline"), record.policies.baseline);
   renderCounters(document.querySelector("#count-proposed"), record.policies.proposed);
   playheadLabel.textContent = `Playhead ${minutes(playhead / 60)} h`;
@@ -299,14 +162,12 @@ async function loadSeed(seed) {
   const response = await fetch(`data/intervals_${seed}.json`);
   if (!response.ok) throw new Error(`intervals_${seed}.json`);
   record = await response.json();
-  const horizon = Math.max(
-    ...record.policies.baseline.intervals.map((row) => row.end),
-    ...record.policies.proposed.intervals.map((row) => row.end),
-  );
-  const window = divergence(
-    record.policies.baseline.intervals,
-    record.policies.proposed.intervals,
-    horizon,
+  const baselineRows = record.policies.baseline.intervals;
+  const proposedRows = record.policies.proposed.intervals;
+  const window = TwinGantt.divergence(
+    baselineRows,
+    proposedRows,
+    TwinGantt.horizon(baselineRows, proposedRows),
   );
   viewStart = window.viewStart;
   viewEnd = window.viewEnd;

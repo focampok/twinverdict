@@ -1,17 +1,24 @@
-"""API: salud, tarjeta de operador y aprobación."""
+"""API: salud, tarjeta de operador, aprobación y probador de políticas."""
 
 from __future__ import annotations
 
+import asyncio
 import json
+import logging
 import secrets
+import time
 import uuid
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 from urllib.parse import parse_qs
 
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy import create_engine, text
+from starlette.middleware.gzip import GZipMiddleware
 from starlette.templating import Jinja2Templates
 
 from api.operator import (
@@ -23,15 +30,47 @@ from api.operator import (
     stamp_approval,
     winning_policy_id,
 )
+from api.try_policy import (
+    GANTT_SEED,
+    TIMEOUT_S,
+    PolicyLab,
+    RateLimiter,
+    TryPolicyError,
+    controls,
+    policy_from_form,
+    validate_policy,
+)
 from config import Settings
 
-TEMPLATES = Jinja2Templates(directory=str(Path(__file__).resolve().parents[1] / "ui" / "templates"))
+ROOT = Path(__file__).resolve().parents[1]
+TEMPLATES = Jinja2Templates(directory=str(ROOT / "ui" / "templates"))
+LOG = logging.getLogger(__name__)
+
+
+@asynccontextmanager
+async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
+    settings = Settings()
+    try:
+        app.state.lab = PolicyLab(settings.REPLAY_JOB_ID, settings.SIM_WORKERS)
+        await app.state.lab.references()
+    except (FileNotFoundError, KeyError, ValueError) as exc:
+        LOG.warning("try-a-policy references unavailable: %s", exc)
+    try:
+        yield
+    finally:
+        if app.state.lab is not None:
+            app.state.lab.close()
 
 
 def create_app(database_url: str | None = None) -> FastAPI:
-    app = FastAPI(title="TwinVerdict")
+    app = FastAPI(title="TwinVerdict", lifespan=_lifespan)
     app.state.database_url = database_url
     app.state.decisions = DecisionLog()
+    app.state.lab = None
+    app.state.try_limiter = RateLimiter()
+    app.state.try_timeout_s = TIMEOUT_S
+    app.add_middleware(GZipMiddleware, minimum_size=1024)
+    app.mount("/visual", StaticFiles(directory=ROOT / "netlify-visual"), name="visual")
 
     @app.middleware("http")
     async def replay_only(request: Request, call_next):
@@ -66,7 +105,41 @@ def create_app(database_url: str | None = None) -> FastAPI:
             page["efficiency_rows"] = efficiency_rows(load_efficiency())
         except (FileNotFoundError, json.JSONDecodeError):
             page["efficiency_rows"] = []
+        lab: PolicyLab | None = app.state.lab
+        page["try_presets"] = (
+            None if lab is None else {"fixed": controls(lab.fixed), "llm": controls(lab.llm)}
+        )
         return TEMPLATES.TemplateResponse(request, "operator.html", page)
+
+    @app.post("/api/try-policy")
+    async def try_policy(request: Request) -> Response:
+        htmx = request.headers.get("HX-Request") == "true"
+        started = time.perf_counter()
+        try:
+            if not app.state.try_limiter.allow(_client_key(request)):
+                raise TryPolicyError(429, "Too many simulations: 6 per minute per IP.")
+            lab: PolicyLab | None = app.state.lab
+            if lab is None:
+                raise TryPolicyError(503, "The reference policies are not loaded.")
+            policy = validate_policy(await _policy_payload(request))
+            references = await lab.references()
+            try:
+                user = await asyncio.wait_for(lab.evaluate(policy), app.state.try_timeout_s)
+            except TimeoutError:
+                raise TryPolicyError(
+                    504, f"The simulation took longer than {app.state.try_timeout_s:g} s."
+                ) from None
+        except TryPolicyError as exc:
+            if htmx:
+                return TEMPLATES.TemplateResponse(
+                    request, "try_error.html", {"message": exc.message}, status_code=exc.status
+                )
+            return JSONResponse({"detail": exc.message}, status_code=exc.status)
+        payload = _try_payload(lab, user, references)
+        timing = {"Server-Timing": f"sim;dur={(time.perf_counter() - started) * 1000:.0f}"}
+        if htmx:
+            return TEMPLATES.TemplateResponse(request, "try_result.html", payload, headers=timing)
+        return JSONResponse(payload, headers=timing)
 
     @app.get("/api/efficiency")
     def efficiency() -> JSONResponse:
@@ -118,6 +191,46 @@ def create_app(database_url: str | None = None) -> FastAPI:
         return TEMPLATES.TemplateResponse(request, "decision.html", page)
 
     return app
+
+
+def _client_key(request: Request) -> str:
+    """El último salto de X-Forwarded-For lo pone el proxy; los anteriores, el cliente."""
+    forwarded = request.headers.get("x-forwarded-for", "")
+    hops = [hop.strip() for hop in forwarded.split(",") if hop.strip()]
+    if hops:
+        return hops[-1]
+    return request.client.host if request.client else "unknown"
+
+
+async def _policy_payload(request: Request) -> object:
+    content_type = request.headers.get("content-type", "")
+    if "application/json" in content_type:
+        try:
+            return json.loads(await request.body())
+        except json.JSONDecodeError:
+            raise TryPolicyError(422, "The body is not valid JSON.") from None
+    if "application/x-www-form-urlencoded" in content_type:
+        form = parse_qs((await request.body()).decode(), keep_blank_values=True)
+        return policy_from_form({key: values[0] for key, values in form.items()})
+    raise TryPolicyError(422, "Send the policy as JSON or as the UI form.")
+
+
+def _try_payload(lab: PolicyLab, user: dict[str, Any], references: dict[str, Any]) -> dict:
+    return {
+        "seeds": lab.seeds,
+        "official_seeds": lab.official_seeds,
+        "gantt_seed": GANTT_SEED,
+        "rows": [
+            {"key": "user", "label": "Your policy", **user["summary"]},
+            {"key": "fixed", "label": "Fixed rule", **references["fixed"]["summary"]},
+            {
+                "key": "llm",
+                "label": "LLM best policy (recorded run)",
+                **references["llm"]["summary"],
+            },
+        ],
+        "gantt": {"baseline": references["fixed"]["gantt"], "proposed": user["gantt"]},
+    }
 
 
 def _replay_blocks(method: str, path: str) -> bool:

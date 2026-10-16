@@ -4,19 +4,8 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>TwinVerdict</title>
+    <link rel="stylesheet" href="gantt.css" />
     <style>
-      :root {
-        --bg: #0f1115;
-        --panel: #181b22;
-        --text: #e8ebf0;
-        --muted: #8a93a3;
-        --processing: #3b82f6;
-        --setup: #a78bfa;
-        --pm: #f59e0b;
-        --down: #ef4444;
-        --idle: #2a2f3a;
-        --playhead: #ffffff;
-      }
       * { box-sizing: border-box; }
       body {
         margin: 0;
@@ -62,8 +51,6 @@
         border-radius: 6px;
       }
       .controls { display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: center; margin: 0.8rem 0; }
-      .chart-scroll { overflow-x: auto; container-type: inline-size; }
-      .chart { width: 1000px; }
       .chart h3, .counters {
         position: sticky;
         left: 0;
@@ -80,11 +67,8 @@
       .counters strong { display: block; font-size: 1.35rem; font-variant-numeric: tabular-nums; }
       .counters span { color: var(--muted); font-size: 0.85rem; }
       .red strong { color: var(--down); }
-      .legend { display: flex; flex-wrap: wrap; gap: 0.8rem; margin-top: 0.8rem; color: var(--muted); font-size: 0.9rem; }
-      .swatch { display: inline-block; width: 0.8rem; height: 0.8rem; margin-right: 0.3rem; vertical-align: -1px; }
       .summary { font-variant-numeric: tabular-nums; }
       footer { margin-top: 3rem; padding-top: 1.25rem; border-top: 1px solid var(--panel); color: var(--muted); }
-      svg text { fill: var(--muted); font-family: system-ui, sans-serif; font-size: 12px; }
       @media (prefers-reduced-motion: reduce) {
         * { scroll-behavior: auto !important; }
       }
@@ -112,7 +96,7 @@
         />
       </section>
 
-      <section>
+      <section class="gantt">
         <h2>The evidence</h2>
         <p class="badge" title="Results recorded from a real search run; the GPU is off during judging.">Recorded run · real vLLM (Qwen3-8B on MI300X)</p>
         <p class="lede">A week of the line, zoomed into the stretch where unplanned stops diverge. One playhead moves both lanes.</p>
@@ -158,6 +142,7 @@
         </div>
       </footer>
     </main>
+    <script src="gantt-core.js"></script>
     <script src="gantt.js"></script>
   </body>
 </html>

@@ -1,0 +1,56 @@
+<div id="try-result">
+  <p class="secondary">
+    {{ seeds | length }} holdout seeds; official card uses {{ official_seeds }}.
+    Every number below comes from the simulator.
+  </p>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>policy</th>
+          <th>on time</th>
+          <th>unplanned downtime, min per week</th>
+          <th>objective</th>
+          <th>95% CI</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+          <tr{% if row.key == "user" %} class="mine"{% endif %}>
+            <td>{{ row.label }}</td>
+            <td>{{ "%.1f" | format(row.on_time_rate * 100) }}%</td>
+            <td>{{ "%.1f" | format(row.unplanned_min) }}</td>
+            <td>{{ "%.4f" | format(row.objective) }}</td>
+            <td>{{ "%.4f" | format(row.objective_ci_low) }}–{{ "%.4f" | format(row.objective_ci_high) }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="gantt gantt-box">
+    <h3>Seed {{ gantt_seed }}: fixed rule against your policy</h3>
+    <p>
+      Unplanned downtime {{ "%.1f" | format(gantt.baseline.kpis.unplanned_min) }} min on the fixed rule
+      and {{ "%.1f" | format(gantt.proposed.kpis.unplanned_min) }} min on your policy.
+      On-time orders {{ gantt.baseline.kpis.on_time | int }} and {{ gantt.proposed.kpis.on_time | int }}.
+      The view zooms into the 12 hours where unplanned stops differ most.
+    </p>
+    <div class="chart-scroll">
+      <div class="chart">
+        <svg id="try-axis" width="1000" height="40" viewBox="0 0 1000 40" role="img" aria-label="Plant-hour axis"></svg>
+        <h3>Fixed rule (threshold 0.75, 1 PM/shift, EDD)</h3>
+        <svg id="try-lane-baseline" width="1000" height="160" viewBox="0 0 1000 160" role="img" aria-label="Fixed rule lane"></svg>
+        <h3>Your policy</h3>
+        <svg id="try-lane-proposed" width="1000" height="160" viewBox="0 0 1000 160" role="img" aria-label="Your policy lane"></svg>
+      </div>
+    </div>
+    <div class="legend">
+      <span><i class="swatch" style="background: var(--processing)"></i>Processing</span>
+      <span><i class="swatch" style="background: var(--setup)"></i>Setup</span>
+      <span><i class="swatch" style="background: var(--pm)"></i>Planned maintenance</span>
+      <span><i class="swatch" style="background: var(--down)"></i>Unplanned stop</span>
+      <span><i class="swatch" style="background: var(--idle)"></i>Idle</span>
+    </div>
+  </div>
+  <script type="application/json" id="try-gantt-data">{{ gantt | tojson }}</script>
+</div>

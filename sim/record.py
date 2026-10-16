@@ -34,14 +34,20 @@ def _measured(result: SimResult) -> dict[str, float]:
     return kpis
 
 
+def record_policy(seed: int, policy: Policy, config: PlantConfig | None = None) -> dict:
+    """KPIs e intervalos de una política en una semilla. Picklable para un ProcessPool."""
+    cfg = PlantConfig() if config is None else config
+    intervals: list[dict[str, float | str]] = []
+    result = run_simulation(policy, seed, cfg, intervals)
+    return {"kpis": _measured(result), "intervals": intervals}
+
+
 def record_seed(seed: int, proposed: Policy, config: PlantConfig | None = None) -> dict:
     """Corre la regla fija y la política propuesta. No llama a simulate()."""
-    cfg = PlantConfig() if config is None else config
-    policies: dict[str, dict[str, object]] = {}
-    for name, policy in (("baseline", fixed_rule_policy()), ("proposed", proposed)):
-        intervals: list[dict[str, float | str]] = []
-        result = run_simulation(policy, seed, cfg, intervals)
-        policies[name] = {"kpis": _measured(result), "intervals": intervals}
+    policies = {
+        name: record_policy(seed, policy, config)
+        for name, policy in (("baseline", fixed_rule_policy()), ("proposed", proposed))
+    }
     return {"seed": seed, "policies": policies}
 
 

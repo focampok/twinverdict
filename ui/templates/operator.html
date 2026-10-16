@@ -14,5 +14,8 @@
       {% include "decision.html" %}
     {% endif %}
   {% endif %}
+  {% if try_presets %}
+    {% include "try_policy.html" %}
+  {% endif %}
   {% include "efficiency.html" %}
 {% endblock %}

@@ -1,0 +1,17 @@
+:root {
+  --bg: #0f1115;
+  --panel: #181b22;
+  --text: #e8ebf0;
+  --muted: #8a93a3;
+  --processing: #3b82f6;
+  --setup: #a78bfa;
+  --pm: #f59e0b;
+  --down: #ef4444;
+  --idle: #2a2f3a;
+  --playhead: #ffffff;
+}
+.gantt svg text { fill: var(--muted); font-family: system-ui, sans-serif; font-size: 12px; }
+.gantt .swatch { display: inline-block; width: 0.8rem; height: 0.8rem; margin-right: 0.3rem; vertical-align: -1px; }
+.gantt .legend { display: flex; flex-wrap: wrap; gap: 0.8rem; margin-top: 0.8rem; color: var(--muted); font-size: 0.9rem; }
+.gantt .chart-scroll { overflow-x: auto; container-type: inline-size; }
+.gantt .chart { width: 1000px; }
