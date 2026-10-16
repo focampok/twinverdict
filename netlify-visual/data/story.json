@@ -1,0 +1,13 @@
+{
+  "model": "Qwen/Qwen3-8B",
+  "llm_source": "vllm",
+  "n_seeds_holdout": 300.0,
+  "on_time_rate_fixed_holdout": 0.5057068010861212,
+  "on_time_rate_best_holdout": 0.9884149935550874,
+  "objective_fixed_holdout": 0.7725039817047121,
+  "objective_fixed_holdout_ci_low": 0.7429516383465712,
+  "objective_fixed_holdout_ci_high": 0.8020563250628531,
+  "objective_best_holdout": 1.3862772356985602,
+  "objective_best_holdout_ci_low": 1.3709379596738258,
+  "objective_best_holdout_ci_high": 1.4016165117232946
+}

@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>TwinVerdict</title>
+    <style>
+      :root {
+        --bg: #0f1115;
+        --panel: #181b22;
+        --text: #e8ebf0;
+        --muted: #8a93a3;
+        --processing: #3b82f6;
+        --setup: #a78bfa;
+        --pm: #f59e0b;
+        --down: #ef4444;
+        --idle: #2a2f3a;
+        --playhead: #ffffff;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font-family: system-ui, sans-serif;
+        line-height: 1.45;
+      }
+      main { max-width: 68rem; margin: 0 auto; padding: 2.5rem 1.25rem 4rem; }
+      h1 { font-size: 2.1rem; line-height: 1.2; margin: 0.4rem 0 0.6rem; }
+      h2 { font-size: 1.35rem; margin: 0 0 0.75rem; }
+      h3 { font-size: 1rem; font-weight: 650; margin: 0.9rem 0 0.35rem; }
+      p { margin: 0.4rem 0; }
+      a { color: var(--text); }
+      section { margin-top: 3rem; }
+      .lede { color: var(--muted); max-width: 40rem; }
+      .badge {
+        display: inline-block;
+        margin: 0;
+        padding: 0.15rem 0.55rem;
+        border: 2px solid var(--text);
+        font-weight: 800;
+        letter-spacing: 0.08em;
+      }
+      button, select {
+        font: inherit;
+        color: var(--text);
+        background: var(--panel);
+        border: 1px solid var(--muted);
+        border-radius: 4px;
+        padding: 0.4rem 0.75rem;
+      }
+      button { cursor: pointer; }
+      button:disabled { opacity: 0.55; cursor: not-allowed; }
+      .soon { color: var(--muted); font-size: 0.9rem; }
+      .live { display: flex; gap: 0.75rem; align-items: center; margin-top: 1rem; }
+      .card-shot {
+        display: block;
+        width: 100%;
+        height: auto;
+        background: #fff;
+        border-radius: 6px;
+      }
+      .controls { display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: center; margin: 0.8rem 0; }
+      .chart-scroll { overflow-x: auto; container-type: inline-size; }
+      .chart { width: 1000px; }
+      .chart h3, .counters {
+        position: sticky;
+        left: 0;
+        width: 100cqi;
+        max-width: 1000px;
+        background: var(--bg);
+      }
+      .counters {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1.5rem;
+        margin: 0.35rem 0 0.2rem;
+      }
+      .counters strong { display: block; font-size: 1.35rem; font-variant-numeric: tabular-nums; }
+      .counters span { color: var(--muted); font-size: 0.85rem; }
+      .red strong { color: var(--down); }
+      .legend { display: flex; flex-wrap: wrap; gap: 0.8rem; margin-top: 0.8rem; color: var(--muted); font-size: 0.9rem; }
+      .swatch { display: inline-block; width: 0.8rem; height: 0.8rem; margin-right: 0.3rem; vertical-align: -1px; }
+      .summary { font-variant-numeric: tabular-nums; }
+      footer { margin-top: 3rem; padding-top: 1.25rem; border-top: 1px solid var(--panel); color: var(--muted); }
+      svg text { fill: var(--muted); font-family: system-ui, sans-serif; font-size: 12px; }
+      @media (prefers-reduced-motion: reduce) {
+        * { scroll-behavior: auto !important; }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <p class="badge">REPLAY</p>
+        <h1>TwinVerdict — an LLM proposes, the simulator decides</h1>
+        <p class="lede">Same demand, same seed. The only thing that changes is the policy.</p>
+        <div class="live">
+          <button id="live-hero" type="button" disabled>See it live →</button>
+          <p id="live-hero-note" class="soon">coming soon</p>
+        </div>
+      </header>
+
+      <section>
+        <h2>The operator card</h2>
+        <p class="lede">Recommendation, verified numbers, and a human approve or reject. Captured from the replay UI.</p>
+        <img
+          class="card-shot"
+          src="img/operator-card.png"
+          alt="Operator card from the replay UI: on-time recommendation, confidence interval, winning policy, and approve or reject"
+        />
+      </section>
+
+      <section>
+        <h2>The evidence</h2>
+        <p class="badge">REPLAY</p>
+        <p class="lede">A week of the line, zoomed into the stretch where unplanned stops diverge. One playhead moves both lanes.</p>
+        <div class="controls">
+          <label>Seed <select id="seed"></select></label>
+          <button id="play" type="button">Play</button>
+          <button id="jump" type="button">Jump to divergence</button>
+          <span id="playhead-label" class="soon"></span>
+        </div>
+        <p id="seed-summary" class="summary"></p>
+        <p id="chart-error" class="soon"></p>
+        <div class="chart-scroll">
+          <div class="chart">
+            <svg id="axis" width="1000" height="40" viewBox="0 0 1000 40" role="img" aria-label="Shared plant-hour axis"></svg>
+            <h3>Baseline: fixed rule (threshold 0.75, 1 PM/shift, EDD)</h3>
+            <svg id="lane-baseline" width="1000" height="160" viewBox="0 0 1000 160" role="img" aria-label="Baseline lane"></svg>
+            <div id="count-baseline" class="counters"></div>
+            <h3>Proposed policy</h3>
+            <svg id="lane-proposed" width="1000" height="160" viewBox="0 0 1000 160" role="img" aria-label="Proposed lane"></svg>
+            <div id="count-proposed" class="counters"></div>
+          </div>
+        </div>
+        <div class="legend">
+          <span><i class="swatch" style="background: var(--processing)"></i>Processing</span>
+          <span><i class="swatch" style="background: var(--setup)"></i>Setup</span>
+          <span><i class="swatch" style="background: var(--pm)"></i>Planned maintenance</span>
+          <span><i class="swatch" style="background: var(--down)"></i>Unplanned stop</span>
+          <span><i class="swatch" style="background: var(--idle)"></i>Idle</span>
+        </div>
+      </section>
+
+      <section>
+        <h2>How it works</h2>
+        <ol id="how-steps"></ol>
+      </section>
+
+      <footer>
+        <p>Simulated plant, not a real factory.</p>
+        <p><a href="https://github.com/focampok/twinverdict">MIT license — repository</a></p>
+        <div class="live">
+          <button id="live-footer" type="button" disabled>See it live →</button>
+          <p id="live-footer-note" class="soon">coming soon</p>
+        </div>
+      </footer>
+    </main>
+    <script src="gantt.js"></script>
+  </body>
+</html>
