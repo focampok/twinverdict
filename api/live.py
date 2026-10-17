@@ -49,7 +49,12 @@ def current_recording() -> dict[str, Any] | None:
     paths = [path for path in LIVE_DIR.glob("live_*.json") if not path.name.endswith(".fake.json")]
     if not paths:
         return None
-    return load_recording(max(paths, key=lambda path: path.stat().st_mtime))
+    path = max(paths, key=lambda item: item.stat().st_mtime)
+    try:
+        return load_recording(path)
+    except (OSError, json.JSONDecodeError, KeyError, TypeError, ValueError):
+        # Lectura a medias o JSON aún vacío: el poll de /live reintenta.
+        return None
 
 
 def parse_speed(raw: object) -> int:

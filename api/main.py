@@ -225,6 +225,10 @@ def _live_context(mode: str, job_id: str, position: float | None, speed: int) ->
         "polling": False,
     }
     if recording is None:
+        # MODE=live: seguir pidiendo el frame hasta que el worker cree el JSON.
+        if mode != "replay":
+            page["polling"] = True
+            page["next_pos"] = 0.0
         return page
     if mode == "replay":
         at = 0.0 if position is None else position

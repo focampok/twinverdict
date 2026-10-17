@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import multiprocessing
 import time
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import replace
@@ -13,6 +14,9 @@ from sim.kpis import kpis_from_result
 from sim.model import run_simulation
 
 Scenario = Literal["base", "stress"]
+# spawn: el worker puede tener el hilo de telemetría (ssh/subprocess) activo; fork
+# con hilos vivos deadlock-ea el pool (ver job 010f7f82).
+_MP_SPAWN = multiprocessing.get_context("spawn")
 
 
 def scenario_config(config: PlantConfig | None, scenario: Scenario) -> PlantConfig:
@@ -60,5 +64,5 @@ def simulate_many(
     if workers <= 1 or len(seed_list) <= 1:
         return [simulate(policy, seed, config, scenario) for seed in seed_list]
     jobs = [(policy, seed, config, scenario) for seed in seed_list]
-    with ProcessPoolExecutor(max_workers=workers) as pool:
+    with ProcessPoolExecutor(max_workers=workers, mp_context=_MP_SPAWN) as pool:
         return list(pool.map(_simulate_job, jobs))

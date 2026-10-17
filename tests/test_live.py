@@ -205,6 +205,38 @@ async def test_search_reports_progress() -> None:
     assert snapshots[-1]["proposals"]["valid"] == valid
 
 
+async def test_mock_search_with_sampler_and_process_pool_finishes(tmp_path: Path) -> None:
+    """El hilo de telemetría no debe colgar el ProcessPool (spawn, no fork)."""
+    path = tmp_path / "live_job.json"
+    recorder = LiveRecorder(
+        "job",
+        path,
+        vllm=lambda: {"model": "mock", "tokens_total": 1.0, "requests_running": 0.0},
+        gpu=gpu_source(("sleep", "0.05")),
+        interval_s=0.05,
+    )
+    recorder.start()
+    http = httpx.AsyncClient(transport=httpx.ASGITransport(app=mock_app), base_url="http://test")
+    client = LLMClient(
+        base_url="http://test/v1", model="mock", api_key="mock", concurrency=4, http_client=http
+    )
+    config = SearchConfig.from_profile("smoke")
+    try:
+        result = await run_search(
+            config, client, "base", 1, workers=2, holdout_seeds=0, progress=recorder.update
+        )
+    finally:
+        await client.aclose()
+        await http.aclose()
+        recorder.stop("done")
+    assert result.simulations_total > 0
+    saved = json.loads(path.read_text())
+    assert saved["status"] == "done"
+    assert saved["finished_at"]
+    assert len(saved["events"]) >= 2
+    assert any((event.get("search") or {}).get("phase") == "done" for event in saved["events"])
+
+
 def _recording(fake: bool) -> dict:
     events = [
         {"t": 4.0, "ts": "2026-10-16T15:00:04+00:00", "search": {"round": 3}, "gpu": None},
@@ -294,6 +326,22 @@ def test_missing_recording_says_so(replay_dir: Path) -> None:
     assert page.status_code == 200
     assert "No recording for this run yet." in page.text
     assert not re.search(r"\breal\b", page.text, re.IGNORECASE)
+    assert "hx-trigger" not in page.text
+
+
+def test_live_mode_polls_until_recording_appears(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(live, "LIVE_DIR", tmp_path)
+    monkeypatch.setenv("MODE", "live")
+    with TestClient(create_app()) as client:
+        page = client.get("/live")
+        frame = client.get("/live/frame", params={"pos": "0", "speed": "30"})
+    assert page.status_code == frame.status_code == 200
+    assert "No recording for this run yet." in page.text
+    for text in (page.text, frame.text):
+        assert 'hx-get="/live/frame?pos=0.0&amp;speed=30"' in text
+        assert 'hx-trigger="load delay:1s"' in text
 
 
 def test_fake_generator_is_marked_and_ordered() -> None:
