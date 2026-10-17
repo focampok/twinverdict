@@ -28,7 +28,7 @@ from config import Settings
 
 LOG = logging.getLogger(__name__)
 INTERVAL_S = 2.0
-GPU_TIMEOUT_S = 8.0
+GPU_TIMEOUT_S = 5.0
 HTTP_TIMEOUT_S = 3.0
 GPU_SMI = (str(ROOT / "infra" / "gpu" / "gpu.sh"), "smi")
 GENERATED = "vllm:generation_tokens_total"

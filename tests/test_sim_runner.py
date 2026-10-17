@@ -1,3 +1,4 @@
+import time
 from dataclasses import replace
 
 import pytest
@@ -65,6 +66,25 @@ def test_simulate_many_matches_serial() -> None:
     many = simulate_many(policy, seeds, workers=2, config=SHORT)
     parallel = [_without_wall(row) for row in many]
     assert parallel == serial
+
+
+def test_spawn_pool_mini_round_not_much_slower_than_serial() -> None:
+    """Pool spawn reutilizado: una mini-ronda no debe ir mucho peor que en serie."""
+    policy = fixed_rule_policy()
+    seeds = list(range(12))
+    rounds = 5
+    # Calienta el pool spawn compartido (el coste de arranque no cuenta en la ronda).
+    simulate_many(policy, seeds, workers=2, config=SHORT)
+    started = time.perf_counter()
+    for _ in range(rounds):
+        simulate_many(policy, seeds, workers=1, config=SHORT)
+    serial_s = time.perf_counter() - started
+    started = time.perf_counter()
+    for _ in range(rounds):
+        simulate_many(policy, seeds, workers=2, config=SHORT)
+    spawn_s = time.perf_counter() - started
+    # Margen holgado para CI cargada; en local spawn suele ser claramente más rápido.
+    assert spawn_s <= serial_s * 1.25, f"spawn {spawn_s:.3f}s vs serial {serial_s:.3f}s"
 
 
 def test_stress_has_more_failures_on_average() -> None:

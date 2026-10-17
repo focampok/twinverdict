@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import atexit
 import multiprocessing
+import threading
 import time
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import replace
@@ -15,8 +17,11 @@ from sim.model import run_simulation
 
 Scenario = Literal["base", "stress"]
 # spawn: el worker puede tener el hilo de telemetría (ssh/subprocess) activo; fork
-# con hilos vivos deadlock-ea el pool (ver job 010f7f82).
+# con hilos vivos deadlock-ea el pool (ver job 010f7f82 / worker_dump.txt).
 _MP_SPAWN = multiprocessing.get_context("spawn")
+_pool: ProcessPoolExecutor | None = None
+_pool_workers: int | None = None
+_pool_lock = threading.Lock()
 
 
 def scenario_config(config: PlantConfig | None, scenario: Scenario) -> PlantConfig:
@@ -52,6 +57,31 @@ def _simulate_job(job: tuple[Policy | dict, int, PlantConfig | None, Scenario]) 
     return simulate(policy, seed, config, scenario)
 
 
+def _shared_pool(workers: int) -> ProcessPoolExecutor:
+    """Un solo pool spawn: recrearlo por política haría cada ronda mucho más lenta."""
+    global _pool, _pool_workers
+    with _pool_lock:
+        if _pool is None or _pool_workers != workers:
+            if _pool is not None:
+                _pool.shutdown(wait=True)
+            _pool = ProcessPoolExecutor(max_workers=workers, mp_context=_MP_SPAWN)
+            _pool_workers = workers
+        return _pool
+
+
+def shutdown_pool() -> None:
+    """Cierra el pool compartido. Los tests pueden llamarlo para no dejar workers vivos."""
+    global _pool, _pool_workers
+    with _pool_lock:
+        if _pool is not None:
+            _pool.shutdown(wait=True)
+            _pool = None
+            _pool_workers = None
+
+
+atexit.register(shutdown_pool)
+
+
 def simulate_many(
     policy: Policy | dict,
     seeds: list[int] | tuple[int, ...],
@@ -59,10 +89,9 @@ def simulate_many(
     config: PlantConfig | None = None,
     scenario: Scenario = "base",
 ) -> list[dict[str, float]]:
-    """Misma política en varias semillas. workers>1 usa ProcessPoolExecutor."""
+    """Misma política en varias semillas. workers>1 usa ProcessPoolExecutor (spawn)."""
     seed_list = [int(seed) for seed in seeds]
     if workers <= 1 or len(seed_list) <= 1:
         return [simulate(policy, seed, config, scenario) for seed in seed_list]
     jobs = [(policy, seed, config, scenario) for seed in seed_list]
-    with ProcessPoolExecutor(max_workers=workers, mp_context=_MP_SPAWN) as pool:
-        return list(pool.map(_simulate_job, jobs))
+    return list(_shared_pool(workers).map(_simulate_job, jobs))

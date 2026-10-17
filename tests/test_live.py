@@ -207,6 +207,7 @@ async def test_search_reports_progress() -> None:
 
 async def test_mock_search_with_sampler_and_process_pool_finishes(tmp_path: Path) -> None:
     """El hilo de telemetría no debe colgar el ProcessPool (spawn, no fork)."""
+    assert telemetry.GPU_TIMEOUT_S == 5.0
     path = tmp_path / "live_job.json"
     recorder = LiveRecorder(
         "job",
@@ -221,6 +222,7 @@ async def test_mock_search_with_sampler_and_process_pool_finishes(tmp_path: Path
         base_url="http://test/v1", model="mock", api_key="mock", concurrency=4, http_client=http
     )
     config = SearchConfig.from_profile("smoke")
+    started = time.perf_counter()
     try:
         result = await run_search(
             config, client, "base", 1, workers=2, holdout_seeds=0, progress=recorder.update
@@ -229,7 +231,9 @@ async def test_mock_search_with_sampler_and_process_pool_finishes(tmp_path: Path
         await client.aclose()
         await http.aclose()
         recorder.stop("done")
+    elapsed = time.perf_counter() - started
     assert result.simulations_total > 0
+    assert elapsed < 60.0, f"job mock con sampler se colgó o fue demasiado lento: {elapsed:.1f}s"
     saved = json.loads(path.read_text())
     assert saved["status"] == "done"
     assert saved["finished_at"]
