@@ -40,6 +40,12 @@ body {
   scroll-snap-type: y mandatory;
   scroll-behavior: smooth;
   overscroll-behavior-y: contain;
+  scrollbar-width: none;
+}
+
+.deck::-webkit-scrollbar,
+.slide::-webkit-scrollbar {
+  display: none;
 }
 
 .slide {
@@ -47,6 +53,7 @@ body {
   min-height: 100%;
   overflow-x: hidden;
   overflow-y: auto;
+  scrollbar-width: none;
   scroll-snap-align: start;
   scroll-snap-stop: always;
   display: grid;
