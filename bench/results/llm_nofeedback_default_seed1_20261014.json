@@ -1,0 +1,343 @@
+{
+  "method": "llm_nofeedback",
+  "best_policy": {
+    "maintenance": {
+      "pm_wear_threshold": {
+        "M1": 0.65,
+        "M2": 0.7,
+        "M3": 0.75,
+        "M4": 0.8,
+        "M5": 0.85
+      },
+      "max_pm_per_shift": 2
+    },
+    "dispatch": {
+      "rule": "WEIGHTED",
+      "weights": {
+        "due_date": 0.4,
+        "wear_risk": 0.35,
+        "setup": 0.25
+      }
+    },
+    "rules": [
+      {
+        "if": {
+          "machine": "M1",
+          "wear_gt": 0.7,
+          "urgent_order_waiting": null,
+          "queue_len_gt": null,
+          "product_waiting": null
+        },
+        "then": {
+          "action": "PRIORITIZE_PRODUCT",
+          "product": "P1"
+        }
+      },
+      {
+        "if": {
+          "machine": "M2",
+          "wear_gt": 0.65,
+          "urgent_order_waiting": null,
+          "queue_len_gt": null,
+          "product_waiting": null
+        },
+        "then": {
+          "action": "PRIORITIZE_PRODUCT",
+          "product": "P2"
+        }
+      },
+      {
+        "if": {
+          "machine": "M3",
+          "wear_gt": 0.6,
+          "urgent_order_waiting": null,
+          "queue_len_gt": null,
+          "product_waiting": null
+        },
+        "then": {
+          "action": "PRIORITIZE_PRODUCT",
+          "product": "P3"
+        }
+      },
+      {
+        "if": {
+          "machine": "M4",
+          "wear_gt": 0.55,
+          "urgent_order_waiting": null,
+          "queue_len_gt": null,
+          "product_waiting": null
+        },
+        "then": {
+          "action": "PRIORITIZE_PRODUCT",
+          "product": "P3"
+        }
+      },
+      {
+        "if": {
+          "machine": "M5",
+          "wear_gt": 0.5,
+          "urgent_order_waiting": null,
+          "queue_len_gt": null,
+          "product_waiting": null
+        },
+        "then": {
+          "action": "PRIORITIZE_PRODUCT",
+          "product": "P2"
+        }
+      }
+    ],
+    "version": 1
+  },
+  "best_objective": 1.2317665500868358,
+  "fixed_objective": 0.7858323573895744,
+  "simulations_total": 69300,
+  "requested": 384,
+  "valid": 384,
+  "invalid": 0,
+  "history": [
+    {
+      "batch": 0,
+      "sims_acumuladas": 180,
+      "best_so_far": 0.7858323573895744
+    },
+    {
+      "batch": 1,
+      "sims_acumuladas": 8820,
+      "best_so_far": 1.1513995650708122
+    },
+    {
+      "batch": 2,
+      "sims_acumuladas": 17460,
+      "best_so_far": 1.1513995650708122
+    },
+    {
+      "batch": 3,
+      "sims_acumuladas": 26100,
+      "best_so_far": 1.1513995650708122
+    },
+    {
+      "batch": 4,
+      "sims_acumuladas": 34740,
+      "best_so_far": 1.195265052442189
+    },
+    {
+      "batch": 5,
+      "sims_acumuladas": 43380,
+      "best_so_far": 1.195265052442189
+    },
+    {
+      "batch": 6,
+      "sims_acumuladas": 52020,
+      "best_so_far": 1.2317665500868358
+    },
+    {
+      "batch": 7,
+      "sims_acumuladas": 60660,
+      "best_so_far": 1.2317665500868358
+    },
+    {
+      "batch": 8,
+      "sims_acumuladas": 69300,
+      "best_so_far": 1.2317665500868358
+    }
+  ],
+  "config": {
+    "N": 48,
+    "K": 180,
+    "R": 8,
+    "sim_workers": 16,
+    "model": "Qwen/Qwen3-8B",
+    "profile": "default",
+    "train_seeds": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23,
+      24,
+      25,
+      26,
+      27,
+      28,
+      29,
+      30,
+      31,
+      32,
+      33,
+      34,
+      35,
+      36,
+      37,
+      38,
+      39,
+      40,
+      41,
+      42,
+      43,
+      44,
+      45,
+      46,
+      47,
+      48,
+      49,
+      50,
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      64,
+      65,
+      66,
+      67,
+      68,
+      69,
+      70,
+      71,
+      72,
+      73,
+      74,
+      75,
+      76,
+      77,
+      78,
+      79,
+      80,
+      81,
+      82,
+      83,
+      84,
+      85,
+      86,
+      87,
+      88,
+      89,
+      90,
+      91,
+      92,
+      93,
+      94,
+      95,
+      96,
+      97,
+      98,
+      99,
+      100,
+      101,
+      102,
+      103,
+      104,
+      105,
+      106,
+      107,
+      108,
+      109,
+      110,
+      111,
+      112,
+      113,
+      114,
+      115,
+      116,
+      117,
+      118,
+      119,
+      120,
+      121,
+      122,
+      123,
+      124,
+      125,
+      126,
+      127,
+      128,
+      129,
+      130,
+      131,
+      132,
+      133,
+      134,
+      135,
+      136,
+      137,
+      138,
+      139,
+      140,
+      141,
+      142,
+      143,
+      144,
+      145,
+      146,
+      147,
+      148,
+      149,
+      150,
+      151,
+      152,
+      153,
+      154,
+      155,
+      156,
+      157,
+      158,
+      159,
+      160,
+      161,
+      162,
+      163,
+      164,
+      165,
+      166,
+      167,
+      168,
+      169,
+      170,
+      171,
+      172,
+      173,
+      174,
+      175,
+      176,
+      177,
+      178,
+      179,
+      180
+    ],
+    "holdout_seeds": [],
+    "git_commit": "b0fd30e9fac962f631896988dfc6f2ff0a77be34",
+    "seconds_per_sim": 0.01815155492256724,
+    "seed": 1,
+    "scenario": "base",
+    "llm_base_url": "http://127.0.0.1:8000/v1",
+    "llm_source": "vllm",
+    "failure_midpoint": 0.95,
+    "failure_steepness": 18.0
+  }
+}

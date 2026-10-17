@@ -35,3 +35,6 @@ data/raw/
 # Grabaciones de prueba de telemetría (worker.telemetry --fake). Nunca pasan por oficiales.
 data/replay/*.fake.json
 data/replay/*.tmp
+
+# Volcados de depuración del worker (py-spy). Referencia en sim/runner.py, nunca se versionan.
+worker_dump.txt

@@ -1,0 +1,66 @@
+{
+  "method": "llm_nofeedback",
+  "best_policy": {
+    "maintenance": {
+      "pm_wear_threshold": {
+        "M1": 0.92,
+        "M2": 0.67,
+        "M3": 0.67,
+        "M5": 0.71
+      },
+      "max_pm_per_shift": 3
+    },
+    "dispatch": {
+      "rule": "WEIGHTED",
+      "weights": {
+        "due_date": 0.884109599148772,
+        "wear_risk": 0.05914509272106895,
+        "setup": 0.056745308130159045
+      }
+    },
+    "rules": [],
+    "version": 1
+  },
+  "best_objective": 0.5580910612881107,
+  "fixed_objective": 0.30403004733248234,
+  "simulations_total": 10,
+  "requested": 4,
+  "valid": 4,
+  "invalid": 0,
+  "history": [
+    {
+      "batch": 0,
+      "sims_acumuladas": 2,
+      "best_so_far": 0.30403004733248234
+    },
+    {
+      "batch": 1,
+      "sims_acumuladas": 6,
+      "best_so_far": 0.5150612992987339
+    },
+    {
+      "batch": 2,
+      "sims_acumuladas": 10,
+      "best_so_far": 0.5580910612881107
+    }
+  ],
+  "config": {
+    "N": 2,
+    "K": 2,
+    "R": 2,
+    "sim_workers": 16,
+    "model": "Qwen/Qwen3-8B",
+    "profile": "smoke",
+    "train_seeds": [
+      1,
+      2
+    ],
+    "holdout_seeds": [],
+    "git_commit": "9c63e86e41288aa98db18b663930a16208079ba2",
+    "seconds_per_sim": 0.08615629889973206,
+    "seed": 1,
+    "scenario": "base",
+    "llm_base_url": "http://127.0.0.1:8001/v1",
+    "llm_source": "mock"
+  }
+}
