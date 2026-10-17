@@ -148,3 +148,19 @@ def test_reject_with_token(monkeypatch) -> None:
         )
     assert response.status_code == 200
     assert "Rejected" in response.text
+
+
+def test_favicon_ico_is_served() -> None:
+    with TestClient(create_app()) as client:
+        response = client.get("/favicon.ico")
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("image/svg+xml")
+
+
+def test_absolute_urls_follow_forwarded_proto(monkeypatch) -> None:
+    monkeypatch.setenv("MODE", "replay")
+    monkeypatch.setenv("REPLAY_JOB_ID", OFFICIAL_JOB_ID)
+    with TestClient(create_app(), base_url="http://twinverdict.focampo.com") as client:
+        response = client.get("/", headers={"X-Forwarded-Proto": "https"})
+    assert 'content="https://twinverdict.focampo.com/visual/img/operator-card.png"' in response.text
+    assert "http://twinverdict.focampo.com" not in response.text

@@ -15,11 +15,12 @@ from typing import Any, Literal
 from urllib.parse import parse_qs
 
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import create_engine, text
 from starlette.middleware.gzip import GZipMiddleware
 from starlette.templating import Jinja2Templates
+from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 from api import live
 from api.operator import (
@@ -71,7 +72,13 @@ def create_app(database_url: str | None = None) -> FastAPI:
     app.state.try_limiter = RateLimiter()
     app.state.try_timeout_s = TIMEOUT_S
     app.add_middleware(GZipMiddleware, minimum_size=1024)
+    # Railway termina TLS en su proxy; sin esto request.base_url sale con http://.
+    app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
     app.mount("/visual", StaticFiles(directory=ROOT / "netlify-visual"), name="visual")
+
+    @app.get("/favicon.ico", include_in_schema=False)
+    def favicon() -> FileResponse:
+        return FileResponse(ROOT / "netlify-visual" / "favicon.svg", media_type="image/svg+xml")
 
     @app.middleware("http")
     async def replay_only(request: Request, call_next):
