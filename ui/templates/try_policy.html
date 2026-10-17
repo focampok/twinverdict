@@ -1,4 +1,5 @@
-<section id="try-policy">
+<script src="https://unpkg.com/htmx.org@2.0.4/dist/ext/response-targets.js"></script>
+<section id="try-policy" hx-ext="response-targets">
   <h2>Try a policy</h2>
   <p class="secondary">
     Build a maintenance and dispatch policy and the simulator scores it against the fixed rule and
@@ -8,10 +9,10 @@
     class="try-form"
     hx-post="/api/try-policy"
     hx-target="#try-result"
+    hx-target-error="#try-result"
     hx-swap="outerHTML"
     hx-indicator="#try-running"
     hx-disabled-elt="find button[type=submit]"
-    hx-on::before-swap="if (event.detail.xhr.status >= 400) { event.detail.shouldSwap = true; event.detail.isError = false; }"
   >
     <fieldset>
       <legend>Dispatch</legend>

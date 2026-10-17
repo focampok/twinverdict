@@ -135,7 +135,9 @@ def create_app(database_url: str | None = None) -> FastAPI:
         started = time.perf_counter()
         try:
             if not app.state.try_limiter.allow(_client_key(request)):
-                raise TryPolicyError(429, "Too many simulations: 6 per minute per IP.")
+                raise TryPolicyError(
+                    429, "Too many simulations, please wait a minute and try again."
+                )
             lab: PolicyLab | None = app.state.lab
             if lab is None:
                 raise TryPolicyError(503, "The reference policies are not loaded.")
@@ -144,9 +146,7 @@ def create_app(database_url: str | None = None) -> FastAPI:
             try:
                 user = await asyncio.wait_for(lab.evaluate(policy), app.state.try_timeout_s)
             except TimeoutError:
-                raise TryPolicyError(
-                    504, f"The simulation took longer than {app.state.try_timeout_s:g} s."
-                ) from None
+                raise TryPolicyError(504, "Simulation timed out, try a simpler policy.") from None
         except TryPolicyError as exc:
             if htmx:
                 return TEMPLATES.TemplateResponse(

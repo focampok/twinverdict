@@ -138,12 +138,41 @@ def test_endpoint_does_not_import_an_llm_client() -> None:
     assert result.returncode == 0, result.stderr
 
 
+def test_htmx_errors_render_in_try_result() -> None:
+    headers = {"HX-Request": "true"}
+    with TestClient(create_app()) as client:
+        invalid = client.post("/api/try-policy", json={"bad": True}, headers=headers)
+        for _ in range(5):
+            client.post("/api/try-policy", json={"bad": True}, headers=headers)
+        rate_limited = client.post("/api/try-policy", json={"bad": True}, headers=headers)
+    assert invalid.status_code == 422
+    assert 'id="try-result"' in invalid.text
+    assert "Field required" in invalid.text
+    assert rate_limited.status_code == 429
+    assert "Too many simulations, please wait a minute and try again." in rate_limited.text
+
+    app = create_app()
+    with TestClient(app) as client:
+        app.state.try_timeout_s = 0.0
+        timed_out = client.post("/api/try-policy", json=_fixed_json(), headers=headers)
+    assert timed_out.status_code == 504
+    assert "Simulation timed out, try a simpler policy." in timed_out.text
+    assert 'class="error"' in timed_out.text
+
+
 def test_index_shows_the_try_a_policy_panel() -> None:
     with TestClient(create_app()) as client:
         page = client.get("/")
         core = client.get("/visual/gantt-core.js")
     assert page.status_code == 200
-    for text in ("Try a policy", "Load fixed rule", "Load LLM best policy", "Simulate"):
+    for text in (
+        "Try a policy",
+        "Load fixed rule",
+        "Load LLM best policy",
+        "Simulate",
+        "hx-target-error",
+        "response-targets",
+    ):
         assert text in page.text
     assert core.status_code == 200
     assert "TwinGantt" in core.text
