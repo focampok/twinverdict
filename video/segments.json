@@ -1,0 +1,116 @@
+{
+  "segments": [
+    {
+      "id": "S1",
+      "source": "clip1.mp4",
+      "section": "Hook",
+      "text": "Every unplanned stop costs a factory hours of output. Changing maintenance rules on a real plant floor is expensive and risky. What if you could test thousands of plans before touching a single machine?"
+    },
+    {
+      "id": "S2",
+      "source": "clip1.mp4",
+      "section": "Problem",
+      "text": "Today, plant managers rely on fixed maintenance and dispatch rules. In our simulated plant, the fixed rule delivers only 50.6% of orders on time."
+    },
+    {
+      "id": "S3",
+      "source": "clip1.mp4",
+      "section": "Solution",
+      "text": "TwinVerdict closes the loop. An open model, Qwen3-8B, proposes policies. A digital twin of the plant scores each one across hundreds of scenarios. The operator gets one clear card, and decides."
+    },
+    {
+      "id": "S4",
+      "source": "clip1.mp4",
+      "section": "Results",
+      "text": "On 300 held-out scenarios, on-time orders go from 50.6% to 98.9%. The feedback loop beats a one-shot LLM and the fixed rule. Optuna still scores higher, but needs almost twice the simulations and cannot explain its policy."
+    },
+    {
+      "id": "S5",
+      "source": "clip1.mp4",
+      "section": "See it run",
+      "text": "Here is the same plant, side by side. Less unplanned downtime, more orders delivered."
+    },
+    {
+      "id": "S6",
+      "source": "clip1.mp4",
+      "section": "Powered by AMD",
+      "text": "The search runs on AMD. Qwen3-8B is served with vLLM on an AMD Instinct MI300X through ROCm, on AMD Developer Cloud. Its large memory keeps the model resident while it answers dozens of requests in parallel."
+    },
+    {
+      "id": "S7",
+      "source": "clip1.mp4",
+      "section": "Who uses it",
+      "text": "It is built for plant managers and maintenance engineers. Every number on the card is verified against the simulator before anyone sees it."
+    },
+    {
+      "id": "S8",
+      "source": "clip1.mp4",
+      "section": "Try it yourself",
+      "text": "And you do not have to take our word for it."
+    },
+    {
+      "id": "S9",
+      "source": "clip2.mp4",
+      "start": 4.6,
+      "end": 16.4,
+      "text": "This is the operator card: what to change, why, and the verified impact. Approve or reject."
+    },
+    {
+      "id": "S10",
+      "source": "clip2.mp4",
+      "start": 16.5,
+      "end": 48.4,
+      "fit": true,
+      "text": "This is the real recorded run on the MI300X. When the model proposes, the GPU hits 100% at over 500 watts, more than 1,400 tokens per second. Then the simulator takes over. Eight rounds, 37,560 simulations."
+    },
+    {
+      "id": "S11",
+      "source": "clip2.mp4",
+      "start": 56.0,
+      "end": 84.08,
+      "text": "Any plant can test its own ideas. Load a policy, simulate, and compare it against the fixed rule in seconds. TwinVerdict. AI proposes, the simulator verifies, the operator decides. Built on AMD. Try it at twinverdict dot focampo dot com."
+    }
+  ],
+  "clip1_sections": [
+    {
+      "name": "Hook",
+      "start": 0.0,
+      "end": 16.38
+    },
+    {
+      "name": "Problem",
+      "start": 17.03,
+      "end": 30.88
+    },
+    {
+      "name": "Solution",
+      "start": 31.56,
+      "end": 49.63
+    },
+    {
+      "name": "Results",
+      "start": 50.35,
+      "end": 69.16
+    },
+    {
+      "name": "See it run",
+      "start": 69.86,
+      "end": 83.06
+    },
+    {
+      "name": "Powered by AMD",
+      "start": 84.55,
+      "end": 113.41
+    },
+    {
+      "name": "Who uses it",
+      "start": 114.1,
+      "end": 128.98
+    },
+    {
+      "name": "Try it yourself",
+      "start": 129.63,
+      "end": 138.9
+    }
+  ]
+}

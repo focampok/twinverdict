@@ -11,6 +11,10 @@ build/
 .coverage
 htmlcov/
 
+# Video de la demo: clips crudos y salidas (frames, voz, MP4) fuera de git.
+docs/clips/
+video/out/
+
 # Entornos locales. Nunca secretos en el repo.
 .env
 .env.gpu
