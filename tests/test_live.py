@@ -25,7 +25,7 @@ from worker.telemetry import (
     vllm_source,
 )
 
-JOB = "285d1787-5d7c-464a-9897-4c585663f088"
+JOB = "c0c92625-de22-4520-accb-6a17c1a76428"
 SECRET = "sk-vllm-SECRET-4f1e"
 METRICS = """# HELP vllm:generation_tokens_total Number of generation tokens processed.
 # TYPE vllm:generation_tokens_total counter

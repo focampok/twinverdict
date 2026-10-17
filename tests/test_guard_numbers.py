@@ -7,7 +7,7 @@ import pytest
 
 from guard.numbers import UnverifiedNumbers, card_text, extract_numbers, render_card, verify
 
-OFFICIAL_JOB_ID = "285d1787-5d7c-464a-9897-4c585663f088"
+OFFICIAL_JOB_ID = "c0c92625-de22-4520-accb-6a17c1a76428"
 CARD_PATH = (
     Path(__file__).resolve().parents[1]
     / "bench"
@@ -45,9 +45,9 @@ def test_text_built_from_official_numbers_passes() -> None:
     assert verify(_visible(rendered), numbers) == []
     assert rendered["headline"].startswith("On time in holdout:")
     assert "50.6%" in rendered["headline"]
-    assert "98.8%" in rendered["headline"]
+    assert "98.9%" in rendered["headline"]
     assert rendered["body"].startswith("Winning policy:")
-    assert "1.386" not in rendered["headline"]
+    assert "1.369" not in rendered["headline"]
     assert "0.772" not in rendered["headline"]
     assert "CRITICAL_RATIO" in rendered["body"]
     assert rendered["stress_caveat"] in rendered["body"]
@@ -58,11 +58,11 @@ def test_one_decimal_percentages_are_accepted() -> None:
     fixed = numbers["on_time_rate_fixed_holdout"]
     best = numbers["on_time_rate_best_holdout"]
     assert f"{fixed * 100:.1f}%" == "50.6%"
-    assert f"{best * 100:.1f}%" == "98.8%"
+    assert f"{best * 100:.1f}%" == "98.9%"
     assert verify("50.6%", numbers) == []
-    assert verify("98.8%", numbers) == []
+    assert verify("98.9%", numbers) == []
     assert verify("50.5%", numbers)
-    assert extract_numbers("50.6% y 98.8%") == {"50.6%", "98.8%"}
+    assert extract_numbers("50.6% y 98.9%") == {"50.6%", "98.9%"}
 
 
 def test_replay_ignores_llm_text() -> None:
@@ -78,5 +78,5 @@ def test_live_llm_text_must_verify() -> None:
         card_text(card, mode="live", llm_text="85% a tiempo")
     assert caught.value.findings
 
-    accepted = card_text(card, mode="live", llm_text="98.8% a tiempo")
-    assert accepted["body"] == "98.8% a tiempo"
+    accepted = card_text(card, mode="live", llm_text="98.9% a tiempo")
+    assert accepted["body"] == "98.9% a tiempo"

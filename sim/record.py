@@ -13,7 +13,7 @@ from sim.model import SimResult, run_simulation
 
 OFFICIAL_REPLAY = (
     Path(__file__).resolve().parents[1]
-    / "bench/results/replay_285d1787-5d7c-464a-9897-4c585663f088.json"
+    / "bench/results/replay_c0c92625-de22-4520-accb-6a17c1a76428.json"
 )
 
 

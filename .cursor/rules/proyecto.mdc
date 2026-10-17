@@ -43,17 +43,16 @@ sim/ policy/ search/ llm/ eval/ baselines/ guard/ api/ ui/ db/ worker/ bench/ in
   Hoy se usa el mock; cambiar a vLLM real debe requerir solo cambiar LLM_BASE_URL y LLM_MODEL.
 - Funciones pequeñas y puras donde se pueda; simulate(policy, seed) no toca red, disco ni BD.
 
-## Alcance actual (jueves 15)
-Hoy es solo UI/UX. Sin GPU. Sin re-correr búsquedas ni baselines.
-Fuente de la demo: job 285d1787-5d7c-464a-9897-4c585663f088 (vLLM real Qwen3-8B,
-planta calibrada). operator_card_285d1787-…json, replay_285d1787-…json,
-bench/results/efficiency_20261015.json. % a tiempo holdout 50.6% → 98.8%.
+## Alcance actual (viernes 16 / demo)
+Fuente de la demo: job c0c92625-de22-4520-accb-6a17c1a76428 (vLLM real Qwen3-8B en
+MI300X, con telemetría). operator_card_c0c92625-…json, replay_c0c92625-…json,
+data/replay/live_c0c92625-…json, bench/results/efficiency_20261017.json.
+Bucle holdout 1.3691 [1.3530, 1.3842], % a tiempo 50.6% → 98.9%, 37_560 sims.
 guard/numbers.py verifica el texto de la tarjeta contra operator_card["numbers"].
-UI de solo lectura: tarjeta de operador primero (% a tiempo, no objetivo compuesto),
-aprobar/rechazar, curva Chart.js, badge REPLAY. MODE=replay sin LLM ni simulador.
-Railway queda para el viernes.
+UI: tarjeta de operador (% a tiempo), aprobar/rechazar, curva Chart.js, /live con
+badge real (no fake), Try a policy. MODE=replay sin LLM ni simulador para la demo.
 No implementar: SSE, auth, premio Google, docker compose, fine-tuning, código generado
-por el LLM, panel de hardware en vivo (captura OK).
+por el LLM.
 
 ## Antes de decir "listo"
 Ejecuta `uv run ruff check .`, `uv run ruff format --check .` y `uv run pytest -q`.

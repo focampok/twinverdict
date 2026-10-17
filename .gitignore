@@ -23,6 +23,7 @@ bench/results/*.json
 !bench/results/replay_*.json
 !bench/results/operator_card_*.json
 !bench/results/efficiency_*.json
+!bench/results/llm_nofeedback_*.json
 
 # Datasets descargados (bench/download_ai4i.py). No se versionan.
 data/raw/

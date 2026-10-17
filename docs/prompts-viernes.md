@@ -1,11 +1,10 @@
 # TwinVerdict: prompts del viernes 16 oct (deploy + entrega)
 
-Fuente: `docs/PENDIENTES_VIERNES.md` en `main` tip `da83aac` (jue 15, ~18:48 GT).
-Jueves cerrado: tarjeta EN, badge «Recorded run · real vLLM», Gantt en `netlify-visual/`,
-`MODE=replay` con job `285d1787-5d7c-464a-9897-4c585663f088`. CI verde en ab01ff6.
+Fuente: `docs/PENDIENTES_VIERNES.md`. Corrida oficial actual:
+`c0c92625-de22-4520-accb-6a17c1a76428` (vLLM real Qwen3-8B en MI300X, con telemetría).
 
-Corrida oficial (no re-medir): holdout a tiempo **50.6% → 98.8%**. Optuna sigue arriba
-en objetivo compuesto. Sin GPU mañana salvo captura estática ya narrada.
+Holdout a tiempo **50.6% → 98.9%**; bucle 1.3691 [1.3530, 1.3842], 37_560 sims
+(`efficiency_20261017.json`). Optuna sigue arriba en objetivo compuesto.
 
 ## Agenda
 
@@ -29,7 +28,7 @@ y la captura de hardware son nice-to-have frente a URL viva + guion.
 ```markdown
 ## Alcance actual (viernes 16)
 Deploy y empaque de entrega. Sin GPU de búsqueda. Sin re-correr baselines.
-Demo: MODE=replay, REPLAY_JOB_ID=285d1787-5d7c-464a-9897-4c585663f088.
+Demo: MODE=replay, REPLAY_JOB_ID=c0c92625-de22-4520-accb-6a17c1a76428.
 UI y visuals en inglés. Números solo de operator_card / efficiency JSON.
 railway.toml ya tiene healthcheck /healthz y alembic + uvicorn.
 No tocar: fine-tuning, SSE (salvo tiempo sobrante), premio Google, re-medir BENCHMARKS,
@@ -50,11 +49,11 @@ Checklist manual:
 2. Add Postgres. `DATABASE_URL` = `${{Postgres.DATABASE_URL}}` (o la forma que Railway
    dé para el servicio Postgres del mismo proyecto).
 3. Variables: `MODE=replay`,
-   `REPLAY_JOB_ID=285d1787-5d7c-464a-9897-4c585663f088`,
+   `REPLAY_JOB_ID=c0c92625-de22-4520-accb-6a17c1a76428`,
    `LLM_API_KEY=mock` (no se llama LLM en replay), `ADMIN_TOKEN=` vacío o un token
    fuerte si quieres probar approve.
 4. Deploy. Abrir `/healthz` → 200. Abrir `/` → tarjeta en inglés, badge
-   «Recorded run · real vLLM», 50.6% → 98.8%.
+   «Recorded run · real vLLM», 50.6% → 98.9%.
 5. `POST /jobs` (si existe) → 503 `replay_only`.
 6. Anota la URL pública (https://….up.railway.app o dominio).
 
@@ -67,7 +66,7 @@ Si el agente debe dejar el repo listo para variables documentadas:
 ```text
 Objetivo: documentar el deploy Railway sin tocar números ni re-correr nada.
 
-- README: sección "Deploy (Railway)" con MODE=replay, REPLAY_JOB_ID=285d1787-…,
+- README: sección "Deploy (Railway)" con MODE=replay, REPLAY_JOB_ID=c0c92625-…,
   DATABASE_URL, healthcheck /healthz, y que POST de búsqueda responde 503.
 - Confirma que .env.example ya trae esos defaults (no inventes otros job ids).
 - No crees el servicio Railway desde CI; solo docs.
@@ -144,7 +143,7 @@ con «open index.html / published URL, record 10–12 s at 1080p, seed 1000111»
 Esquema PLAN.md (tarjeta al centro). Guion de voz en inglés (jurado). Borrador listo
 en `amd-hackathon-act-iii/guion-video-3min-en.md` (mismo directorio que estos prompts).
 
-Portada 16:9: título TwinVerdict, subtítulo una línea del salto 50.6% → 98.8%, badge
+Portada 16:9: título TwinVerdict, subtítulo una línea del salto 50.6% → 98.9%, badge
 AMD / vLLM / MI300X, sin inventar métricas.
 
 ```text

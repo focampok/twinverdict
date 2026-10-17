@@ -1,16 +1,16 @@
 # Pendientes del viernes 16
 
-Estado: `main` en `da83aac`, CI verde. Corrida oficial `285d1787-5d7c-464a-9897-4c585663f088`
-(vLLM real Qwen3-8B, planta calibrada). Holdout (300 semillas): regla fija 0.7725 / **50.6%**,
-Optuna 1.5126 / 99.9%, one-shot 1.2259 / 91.4%, bucle 1.3863 / **98.8%** (48_540 sims).
-Detalle en `docs/BENCHMARKS.md` y `bench/results/efficiency_20261015.json`.
-Hecho el jueves: guard de números, tarjeta del operador, curva, modo replay, grabador de intervalos,
-Gantt en `netlify-visual/`, texto en inglés (`ab01ff6`).
+Estado: corrida oficial `c0c92625-de22-4520-accb-6a17c1a76428` (vLLM real Qwen3-8B en
+MI300X, con telemetría). Holdout (300 semillas): regla fija 0.7725 / **50.6%**,
+Optuna 1.5126 / 99.9%, one-shot 1.2259 / 91.4%, bucle 1.3691 / **98.9%** (37_560 sims,
+IC [1.3530, 1.3842]). Detalle en `docs/BENCHMARKS.md` y
+`bench/results/efficiency_20261017.json`.
+Hecho: guard de números, tarjeta, curva, replay, telemetría `/live`, Try a policy, Gantt.
 
 ## Orden nuevo (prompts en `docs/prompts-viernes.md`)
 
 1. **Probador de políticas "Try a policy"** (~3 h, sin GPU): controles de regla, umbrales M1–M5,
-   max_pm_per_shift; simula 20 semillas del holdout y compara usuario / regla fija / LLM 285d1787; Gantt.
+   max_pm_per_shift; simula 20 semillas del holdout y compara usuario / regla fija / LLM c0c92625; Gantt.
 2. **Prueba local completa + video**: README en clone limpio; GPU opcional con nombre nuevo
    (`twinverdict-gpu5`), captura de `rocm-smi` y tokens/s, y luego destruirla; grabar el video de 3:00 en inglés
    (clip del Gantt de 10–12 s, semilla 1000111).

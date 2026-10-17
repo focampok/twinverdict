@@ -443,13 +443,14 @@ en `Qwen/Qwen3-8B`.
 
 **Esta fila del bucle no es la oficial.** El job se quedó en la regla fija (bug de clones del
 top-k, corregido en `476e8cf`). La corrida oficial del bucle con planta calibrada es la
-sesión GPU 4, más abajo.
+sesión GPU 5 (telemetría), más abajo; GPU 4 queda como corrida previa.
 
-## Miércoles 14, sesión GPU 4 (oficial, planta calibrada)
+## Miércoles 14, sesión GPU 4 (planta calibrada; supersedida)
 
-**Corrida oficial del bucle con planta calibrada** (`failure_midpoint` 0.95,
-`failure_steepness` 18). Los objetivos se comparan con la sección «Corte de calibración» (misma
-planta); no con GPU 2 ni con las tablas de midpoint 0.72.
+**Corrida del bucle con planta calibrada** (`failure_midpoint` 0.95,
+`failure_steepness` 18). Fue la oficial hasta la sesión con telemetría
+(`c0c92625…`, más abajo). Los objetivos se comparan con la sección «Corte de calibración»
+(misma planta); no con GPU 2 ni con las tablas de midpoint 0.72.
 
 Perfil `default`, seed 1, holdout 300, `SIM_WORKERS=16`, `LLM_MODEL=Qwen/Qwen3-8B` por el
 túnel `http://127.0.0.1:8000/v1`. El bucle es el job
@@ -471,7 +472,7 @@ remuestreos con `PCG64(0)`.
 | regla fija | 0.7858 | 0.7725 | [0.7431, 0.8017] | 50.6% | 180 | no alcanza | definitivo |
 | Optuna TPE | 1.5188 | 1.5126 | [1.5048, 1.5198] | 99.9% | 69_300 | 5_760 | definitivo |
 | LLM sin retroalimentación | 1.2318 | 1.2259 | [1.2167, 1.2349] | 91.4% | 69_300 | no alcanza | vLLM real |
-| bucle con retroalimentación | 1.3810 | 1.3863 | [1.3705, 1.4014] | 98.8% | 48_540 | no alcanza | **oficial**, vLLM real |
+| bucle con retroalimentación | 1.3810 | 1.3863 | [1.3705, 1.4014] | 98.8% | 48_540 | no alcanza | vLLM real (supersedida) |
 
 Precisión del JSON, sin redondear: bucle `best_objective` **1.3809907221951065** al cierre
 (47_340 sims de train). One-shot **1.2317665500868358**. Optuna **1.5188378682250157**.
@@ -490,21 +491,64 @@ al umbral en 5_760 sims.
 Holdout del bucle en la tarjeta (`operator_card_285d1787-…json`), objetivo
 1.3862772356985602, IC guardado por el job [1.3709379596738258, 1.4016165117232946], % a
 tiempo **0.9884149935550874**. Regla fija en el mismo holdout: 0.5057068010861212 a tiempo.
-El titular de la tarjeta es **50.6% → 98.8%** a tiempo en semillas que la búsqueda no vio.
-En estrés (+30% fallas, demanda ×1.5) fija 0.1305 y mejor 0.4528 a tiempo; el hueco lo lleva
-el throughput (965.3 vs 747.9), no el % a tiempo.
+El titular de esa tarjeta era **50.6% → 98.8%**. En estrés (+30% fallas, demanda ×1.5) fija
+0.1305 y mejor 0.4528 a tiempo; el hueco lo lleva el throughput (965.3 vs 747.9), no el % a
+tiempo.
 
 La ganadora es `CRITICAL_RATIO` con pesos (setup 0.3, due_date 0.3, wear_risk 0.4),
 `max_pm_per_shift=1`, `pm_wear_threshold` vacío, 5 reglas (`PRIORITIZE_PRODUCT` por máquina
 con `wear_gt` 0.95/0.94/0.93/0.96/0.92). El one-shot ganador sigue siendo el WEIGHTED del
 corte. `LLM_MODEL` sigue en `Qwen/Qwen3-8B`.
 
-### Pendiente: ronda 2 (34 inválidas), sin GPU
+### Nota: ronda 2 de 285d1787 (34 inválidas)
 
-En la **ronda 2** del bucle (segunda de propuestas LLM; 15 válidas, **34 inválidas**) casi
-todas fallan el mismo chequeo de Pydantic: `rules.*.if` con `machine: null` y
-`product_waiting: null` (“la condición debe incluir al menos un campo”). Hay 4 inválidas más
-en la ronda 3; el resto de rondas salió limpio (38 inválidas en total). **Pendiente a revisar
-mañana, sin GPU:** mirar el prompt / el schema guiado / el postproceso que deja condiciones
-vacías. No bloquea la tarjeta ni la UI: los números de arriba son los que salieron y quedan
-como oficiales.
+En la **ronda 2** de ese job (15 válidas, **34 inválidas**) casi todas fallaban el mismo
+chequeo de Pydantic: `rules.*.if` con `machine: null` y `product_waiting: null`. La corrida
+oficial nueva (`c0c92625…`) no repite ese problema (201 propuestas LLM válidas).
+
+## Viernes 16, sesión GPU 5 (oficial, con telemetría)
+
+**Corrida oficial actual** del bucle con planta calibrada y telemetría en vivo
+(`data/replay/live_c0c92625-….json`, `fake=false`). Misma planta que GPU 4
+(`failure_midpoint` 0.95, `failure_steepness` 18).
+
+Perfil `default`, seed 1, holdout 300, `LLM_MODEL=Qwen/Qwen3-8B` por el túnel a vLLM en
+MI300X. El bucle es el job `c0c92625-de22-4520-accb-6a17c1a76428`: `started_at`
+2026-10-16 18:17:05−06, `finished_at` 18:29:28−06 (**742.9 s**). `llm_source=vllm`, commit
+`0bfdeef`. **201 propuestas LLM válidas** (ninguna inválida en el freeze). 
+`simulations_total` del job es **37_560** (36_360 de entrenamiento = 202 políticas × 180,
+más 1_200 de holdout y estrés). La curva de entrenamiento cierra en **36_360**. La regla
+fija y Optuna son las del corte; el one-shot es
+`llm_nofeedback_default_seed1_20261017.json` (mismo `best_objective` 1.2318).
+
+Tabla que imprimió `eval.efficiency` (`bench/results/efficiency_20261017.json`, umbral
+`0.7858 + 0.9*(1.5188 − 0.7858) = 1.4455`). El IC de holdout es el bootstrap de 2000
+remuestreos con `PCG64(0)`.
+
+| método | train | holdout | IC 95% | % a tiempo | sims | sims al 90% | notas |
+|---|---:|---:|---|---:|---:|---|---|
+| regla fija | 0.7858 | 0.7725 | [0.7431, 0.8017] | 50.6% | 180 | no alcanza | definitivo |
+| Optuna TPE | 1.5188 | 1.5126 | [1.5048, 1.5198] | 99.9% | 69_300 | 5_760 | definitivo |
+| LLM sin retroalimentación | 1.2318 | 1.2259 | [1.2167, 1.2349] | 91.4% | 69_300 | no alcanza | vLLM real |
+| bucle con retroalimentación | 1.3755 | 1.3691 | [1.3530, 1.3842] | 98.9% | 37_560 | no alcanza | **oficial**, vLLM real |
+
+Precisión del JSON, sin redondear: bucle `best_objective` (train) **1.375498030247249** al
+cierre (36_360 sims de train). Holdout **1.369148246207772**. One-shot
+**1.2317665500868358**. Optuna **1.5188378682250157**. Ningún método con LLM cruza el
+umbral 1.4455373171414716. Optuna sigue arriba en objetivo; el bucle llega a **98.9%** a
+tiempo en holdout.
+
+| simulaciones | 180 | 8_460 | 13_680 | 20_880 | 25_560 | 36_360 |
+|---|---:|---:|---:|---:|---:|---:|
+| bucle, mejor hasta ahí | 0.7858 | 1.3670 | 1.3751 | 1.3755 | 1.3755 | 1.3755 |
+
+Holdout del bucle en la tarjeta (`operator_card_c0c92625-…json`), objetivo
+1.3691482462077722, IC del job [1.3537462894545935, 1.3845502029609509], % a tiempo
+**0.9891607470550925**. Regla fija en el mismo holdout: 0.5057068010861212 a tiempo. El
+titular de la tarjeta es **50.6% → 98.9%** a tiempo en semillas que la búsqueda no vio. En
+estrés (+30% fallas, demanda ×1.5) fija 0.1305 y mejor 0.2643 a tiempo; el hueco lo lleva el
+throughput (949.9 vs 747.9), no el % a tiempo.
+
+La ganadora es `CRITICAL_RATIO` con pesos (setup 0.2, due_date 0.5, wear_risk 0.3),
+`max_pm_per_shift=1`, `pm_wear_threshold` vacío, 5 reglas (`PRIORITIZE_PRODUCT` por máquina
+con `wear_gt` 0.85/0.80/0.75/0.75/0.70). `LLM_MODEL` sigue en `Qwen/Qwen3-8B`.

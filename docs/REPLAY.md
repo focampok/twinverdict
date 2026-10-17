@@ -5,7 +5,7 @@ Este documento lista qué queda guardado, dónde, quién lo lee y qué huecos ha
 
 ## Checklist de demo
 
-1. `cp .env.example .env` con `MODE=replay` y `REPLAY_JOB_ID=285d1787-5d7c-464a-9897-4c585663f088`.
+1. `cp .env.example .env` con `MODE=replay` y `REPLAY_JOB_ID=c0c92625-de22-4520-accb-6a17c1a76428`.
 2. `make setup && make db`.
 3. `make web`.
 4. Abrir http://localhost:8000/ y ver la tarjeta, el badge "Recorded run · real vLLM (Qwen3-8B on MI300X)" y la curva.

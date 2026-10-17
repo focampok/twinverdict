@@ -11,7 +11,7 @@ from policy.schema import MACHINES, fixed_rule_policy
 from sim.calibration import calibrated_plant_config
 from sim.runner import simulate_many
 
-OFFICIAL_JOB_ID = "285d1787-5d7c-464a-9897-4c585663f088"
+OFFICIAL_JOB_ID = "c0c92625-de22-4520-accb-6a17c1a76428"
 
 
 @pytest.fixture(autouse=True)

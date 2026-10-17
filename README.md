@@ -35,7 +35,7 @@ make setup && make db
 make web
 ```
 
-Abrir http://localhost:8000/ y ver la tarjeta. `REPLAY_JOB_ID` es `285d1787-5d7c-464a-9897-4c585663f088`. No hace falta GPU ni un LLM: la tarjeta y la curva salen de los JSON versionados. Encolar una búsqueda (`POST /jobs`) responde 503 `{"error":"replay_only"}`.
+Abrir http://localhost:8000/ y ver la tarjeta. `REPLAY_JOB_ID` es `c0c92625-de22-4520-accb-6a17c1a76428`. No hace falta GPU ni un LLM: la tarjeta y la curva salen de los JSON versionados. Encolar una búsqueda (`POST /jobs`) responde 503 `{"error":"replay_only"}`.
 
 Tests y benchmark:
 
@@ -47,7 +47,7 @@ make bench
 
 ## Variables de entorno
 
-Están en `.env.example`: `DATABASE_URL`, `MODE` (`live` o `replay`), `REPLAY_JOB_ID` (`285d1787-5d7c-464a-9897-4c585663f088`), `LLM_BASE_URL`, `LLM_MODEL`, `LLM_API_KEY`, `ADMIN_TOKEN`, `SIM_WORKERS`. El ejemplo deja `MODE=replay`.
+Están en `.env.example`: `DATABASE_URL`, `MODE` (`live` o `replay`), `REPLAY_JOB_ID` (`c0c92625-de22-4520-accb-6a17c1a76428`), `LLM_BASE_URL`, `LLM_MODEL`, `LLM_API_KEY`, `ADMIN_TOKEN`, `SIM_WORKERS`. El ejemplo deja `MODE=replay`.
 
 Para apuntar a un vLLM propio basta cambiar `LLM_BASE_URL`, `LLM_MODEL` y `LLM_API_KEY`. El cliente es el de `llm/client.py`, compatible con OpenAI.
 

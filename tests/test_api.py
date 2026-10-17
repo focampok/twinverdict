@@ -4,8 +4,8 @@ from fastapi.testclient import TestClient
 
 from api.main import create_app
 
-OFFICIAL_JOB_ID = "285d1787-5d7c-464a-9897-4c585663f088"
-WINNING_POLICY_ID = "9632bd63-c0cd-4f7a-bf48-ddbd77970760"
+OFFICIAL_JOB_ID = "c0c92625-de22-4520-accb-6a17c1a76428"
+WINNING_POLICY_ID = "af99dad9-5195-4712-b62a-6aa2c54d0bea"
 
 
 def test_healthz() -> None:
@@ -74,7 +74,7 @@ def test_efficiency_endpoint_and_chart_canvas() -> None:
         "fixed",
         "methods",
     } <= set(payload)
-    assert payload["date"] == "20261015"
+    assert payload["date"] == "20261017"
     assert [item["name"] for item in payload["methods"]] == [
         "regla fija",
         "Optuna TPE",

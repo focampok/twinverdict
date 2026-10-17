@@ -17,7 +17,7 @@ from db.session import get_engine
 from guard.numbers import UnverifiedNumbers, card_text, verify
 
 RESULTS = Path(__file__).resolve().parents[1] / "bench" / "results"
-EFFICIENCY_FILE = RESULTS / "efficiency_20261015.json"
+EFFICIENCY_FILE = RESULTS / "efficiency_20261017.json"
 MISSING = "—"
 DecisionStatus = Literal["approved", "rejected"]
 
