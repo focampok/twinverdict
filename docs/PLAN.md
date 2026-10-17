@@ -1,5 +1,7 @@
 # TwinVerdict - Arquitectura y alcance (v4)
 
+> Working note, in Spanish. The result judges should use is job `c0c92625-de22-4520-accb-6a17c1a76428`: holdout 1.3691 [1.3530, 1.3842], on time 50.6% → 98.9%, 37,560 simulations. See the repository README and `docs/BENCHMARKS.md`.
+
 **Hackathon:** AMD Developer Hackathon: ACT III · **Track:** Intelligent Industry · **Ventana:** 12 a 18 oct 2026, kickoff lun 12 a las 09:00 GT · **Entrega:** dom 18 oct, 15:00 UTC = **09:00 GT** (confirmado en el dashboard en vivo de lablab) · **Premios:** más de $12,000, incluido un premio opcional de Google de $5,000
 
 **Cambios en v4**

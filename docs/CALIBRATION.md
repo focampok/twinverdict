@@ -1,5 +1,7 @@
 # Calibración de la curva desgaste → riesgo
 
+> Working note, in Spanish. The official card is job `c0c92625-de22-4520-accb-6a17c1a76428` (on time 50.6% → 98.9%). Figures in this file are the AI4I fit, not that card. See `docs/BENCHMARKS.md`.
+
 Qué se calibró, con qué datos, y qué sigue siendo supuesto de planta simulada. El detalle
 numérico está en `sim/calibrated_params.json`; el código, en `sim/calibration.py`.
 

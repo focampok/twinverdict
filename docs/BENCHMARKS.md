@@ -1,554 +1,388 @@
 # Benchmarks
 
-Fecha de la medición local: 2026-10-12. Postgres local 16.15. Los números de la MI300X se llenan el martes.
+Numbers below were measured. The official comparison is the 16 October 2026 run. Earlier sections keep the plant and the job they were measured on. A higher objective on an older plant is not a better method.
 
-Precio público de DigitalOcean, vigente al 12 oct 2026: AMD Instinct MI300X a $2.59/GPU/hora bajo demanda (1 GPU; 20 vCPU, 240 GiB RAM, 192 GB de memoria de GPU). El paquete de 8 GPUs son $20.72/hora. El plan reservado a 12 meses es $1.91/GPU/hora y no aplica a sesiones que se destruyen el mismo día. Con $100 de crédito, $2.59/hora da unas 38 horas: la tabla B del plan v4. Fuente: [GPU Droplets Pricing](https://www.digitalocean.com/pricing/gpu-droplets). El método de pago de la cuenta ya está agregado.
+Local measurement date for the first section: 2026-10-12. Local Postgres 16.15.
 
-## Lunes 12, máquina local
+Public DigitalOcean price on 12 Oct 2026: AMD Instinct MI300X at $2.59/GPU/hour on demand (1 GPU; 20 vCPU, 240 GiB RAM, 192 GB GPU memory). The 8-GPU pack is $20.72/hour. The 12-month reserved plan is $1.91/GPU/hour and does not apply to a droplet destroyed the same day. At $2.59/hour, $100 of credit is about 38 hours. Source: [GPU Droplets Pricing](https://www.digitalocean.com/pricing/gpu-droplets).
 
-- Hardware: Intel Core Ultra 7 255H, 16 núcleos, 1 hilo por núcleo, x86_64.
-- Comando: `uv run python -m bench.sim_speed --seeds 100 --workers 16`.
-- Serie: media 0.1038 s, p95 0.1386 s por simulación.
-- Paralelo, tiempo dentro de cada proceso: media 0.1582 s, p95 0.2356 s.
-- Paralelo, reloj de pared con 16 workers: 1.144 s para 100 simulaciones, 0.0114 s por simulación.
-- Una búsqueda de K=100, N=32, R=8 (25_600 simulaciones) cabe en 4.88 min en estos 16 núcleos.
-- En 25 min caben unas 131_000 simulaciones a ese ritmo.
-- Un solo núcleo, al ritmo de la serie (0.1038 s), tardaría unos 44 min en esas 25_600 simulaciones.
-- Para bajar de 25 min bastan unos 4 núcleos si el escalado se parece al medido (16 núcleos × 4.88 / 25 ≈ 3.1, redondeado hacia arriba).
+## Official result (16 Oct 2026)
 
-El mock LLM en esta misma máquina (`bench.llm_throughput --concurrency 8,16,32,64 --n 64`) dio tasa de válidas 1.0. El mejor ritmo fue 16 en paralelo, unas 58_700 políticas válidas por minuto. Ese número es del mock, no de vLLM. `bench.budget` con `SIM_WORKERS=16` y sin `GPU_PRICE_PER_HOUR` recomienda N=48, K=100, R=8 en 7.44 min, pero los defaults de `search/config.py` siguen en N=32, K=100, R=8 hasta medir la MI300X. El mock no limita la búsqueda; la GPU sí puede hacerlo.
+Job `c0c92625-de22-4520-accb-6a17c1a76428`. Real vLLM, `Qwen/Qwen3-8B`, AMD Instinct MI300X, calibrated plant (`failure_midpoint` 0.95, `failure_steepness` 18). Profile `default`, seed 1, holdout 300. `started_at` 2026-10-16 18:17:05−06, `finished_at` 18:29:28−06 (**742.9 s**). `llm_source=vllm`, commit `0bfdeef`. **201 valid LLM proposals**, 0 invalid in the freeze, 483 duplicates. `simulations_total` is **37,560** (36,360 of training = 202 policies × 180, plus 1,200 of holdout and stress). The training curve closes at **36,360**.
 
-## Martes 13, MI300X
+The fixed rule and Optuna are the calibration-cut runs (same seeds, same plant). The one-shot row is `llm_nofeedback_default_seed1_20261017.json` (`best_objective` 1.2318).
 
-- Modelo: `Qwen/Qwen3-8B`.
-- Imagen: DigitalOcean vLLM 0.27.1 1-Click. Contenedor e imagen Docker `rocm`. vLLM lanzado con `docker exec` y `--api-key`. Fingerprint del servidor: `vllm-0.27.1-71b87f10`.
-- Núcleos de la instancia: 20 (`nproc`). La simulación de abajo no corrió ahí.
-- Precio por hora de esta sesión: $1.99 (escenario A, unas 50 h con $100). Docker publica el puerto 8000 en `0.0.0.0`; la api-key es obligatoria. El acceso medido fue el túnel SSH a `127.0.0.1:8000`.
-- `bench.llm_smoke --n 20` contra el esquema de `policy/schema.py` (`response_format` json_schema strict): 20/20 válidas, tasa 1.000. p50 4.372 s, p95 5.259 s, 570.1 tokens de salida por segundo. El cliente pide las 20 en paralelo (concurrencia 32).
-- `bench.llm_throughput --concurrency 1,8,32 --n 64` (64/64 válidas en los tres niveles):
+Table printed by `eval.efficiency` from [`bench/results/efficiency_20261017.json`](../bench/results/efficiency_20261017.json). Threshold `0.7858 + 0.9*(1.5188 − 0.7858) = 1.4455`. The holdout interval is a bootstrap of 2,000 resamples with `PCG64(0)`.
 
-  | conc | válidas/min | tok/s | p50 s | p95 s |
+| Method | Train | Holdout | 95% CI | On time | Sims | Sims to 90% | Notes |
+|---|---:|---:|---|---:|---:|---|---|
+| Fixed rule | 0.7858 | 0.7725 | [0.7431, 0.8017] | 50.6% | 180 | does not reach | definitive |
+| Optuna TPE | 1.5188 | 1.5126 | [1.5048, 1.5198] | 99.9% | 69,300 | 5,760 | definitive |
+| LLM, no feedback | 1.2318 | 1.2259 | [1.2167, 1.2349] | 91.4% | 69,300 | does not reach | real vLLM |
+| Feedback loop | 1.3755 | 1.3691 | [1.3530, 1.3842] | 98.9% | 37,560 | does not reach | **official**, real vLLM |
+
+Unrounded JSON: loop training `best_objective` **1.375498030247249** at close (36,360 training sims). Holdout **1.369148246207772**, CI **[1.3530473586435008, 1.3841888015906354]**, on time **0.9891607470550925**. One-shot **1.2317665500868358**. Optuna **1.5188378682250157**. The fixed-rule holdout on-time rate is **0.5057068010861212**. No LLM method crosses the threshold 1.4455373171414716.
+
+Optuna is ahead on the composite objective (holdout 1.5126 against 1.3691) and on on-time delivery (99.9% against 98.9%). It reaches 90% of the gap in 5,760 simulations. The loop’s headline against the fixed rule is **50.6% → 98.9%** on seeds the search did not see. The budgets differ: the loop evaluated 201 valid proposals (37,560 sims); Optuna and the one-shot LLM each used 69,300.
+
+| Simulations | 180 | 8,460 | 13,680 | 20,880 | 25,560 | 36,360 |
+|---|---:|---:|---:|---:|---:|---:|
+| Loop, best so far | 0.7858 | 1.3670 | 1.3751 | 1.3755 | 1.3755 | 1.3755 |
+
+The operator card (`operator_card_c0c92625-…json`) stores the analytical interval from the job, mean ± 1.96·s/√n: objective **1.3691482462077722**, CI **[1.3537462894545935, 1.3845502029609509]**. That interval is not the bootstrap in the table above. Both describe the same holdout mean. The card’s on-time rates match the JSON: fixed 0.5057068010861212, best 0.9891607470550925.
+
+The winner is `CRITICAL_RATIO` with weights (setup 0.2, due date 0.5, wear risk 0.3), `max_pm_per_shift=1`, empty `pm_wear_threshold`, and 5 rules (`PRIORITIZE_PRODUCT` per machine with `wear_gt` 0.85/0.80/0.75/0.75/0.70). `LLM_MODEL` remains `Qwen/Qwen3-8B`.
+
+Under stress (+30% failures, demand ×1.5) the fixed rule is at 0.1305 on time and the winner at 0.2643. The gap there is throughput (949.9 against 747.9 completed orders).
+
+Telemetry for this job is `data/replay/live_c0c92625-….json` with `fake=false`: 290 samples, 742 seconds, GPU `AMD Instinct MI300X VF`, VRAM 93% throughout, GPU use peak 100% (mean 27%), power peak 570 W (mean 249 W), vLLM token counter 22,003 → 309,085, peak 2,130 tokens/s.
+
+## How to read an objective
+
+Formula (`sim/objective.py`, weights in `sim/objective_weights.json`). Higher is better. It is not clipped to [0, 1]:
+
+`throughput/400 + on_time_rate/1 − unplanned_h/40 − 0.5·planned_h/20 − 0.5·cost/10000`
+
+Holdout seeds are 1,000,001–1,000,300 when `holdout_seeds=300`. They do not overlap the training seeds. Stress reuses those seeds with failures ×1.3 and demand ×1.5. Four extra evaluations (best and fixed, holdout and stress) sit outside the training budget and are added to `simulations_total`.
+
+Optuna does not write conditional rules. The LLM may write up to five. That is the structural difference. It is not, by itself, a higher score.
+
+## Monday 12, local machine
+
+- Hardware: Intel Core Ultra 7 255H, 16 cores, 1 thread per core, x86_64.
+- Command: `uv run python -m bench.sim_speed --seeds 100 --workers 16`.
+- Serial: mean 0.1038 s, p95 0.1386 s per simulation.
+- Parallel, time inside each process: mean 0.1582 s, p95 0.2356 s.
+- Parallel, wall clock with 16 workers: 1.144 s for 100 simulations, 0.0114 s per simulation.
+- A search of K=100, N=32, R=8 (25,600 simulations) fits in 4.88 min on these 16 cores.
+- In 25 min, about 131,000 simulations at that rate.
+- One core, at the serial rate (0.1038 s), would take about 44 min for those 25,600 simulations.
+- About 4 cores are enough to get under 25 min if scaling matches this measurement (16 cores × 4.88 / 25 ≈ 3.1, rounded up).
+
+The mock LLM on the same machine (`bench.llm_throughput --concurrency 8,16,32,64 --n 64`) had a valid rate of 1.0. The best pace was 16 in parallel, about 58,700 valid policies per minute. That number is the mock, not vLLM. `bench.budget` with `SIM_WORKERS=16` and no `GPU_PRICE_PER_HOUR` recommends N=48, K=100, R=8 in 7.44 min. The defaults in `search/config.py` stayed at N=32, K=100, R=8 until the MI300X was measured. The mock does not limit the search. The GPU can.
+
+## Tuesday 13, MI300X
+
+- Model: `Qwen/Qwen3-8B`.
+- Image: DigitalOcean vLLM 0.27.1 1-Click. Container and Docker image `rocm`. vLLM started with `docker exec` and `--api-key`. Server fingerprint: `vllm-0.27.1-71b87f10`.
+- Cores on the instance: 20 (`nproc`). The simulation below did not run there.
+- Price for this session: $1.99/hour (about 50 h on $100). Docker published port 8000 on `0.0.0.0`. The API key was required. The measured path was the SSH tunnel to `127.0.0.1:8000`.
+- `bench.llm_smoke --n 20` against the schema in `policy/schema.py` (`response_format` json_schema strict): 20/20 valid, rate 1.000. p50 4.372 s, p95 5.259 s, 570.1 output tokens per second. The client sent all 20 at once (concurrency 32).
+- `bench.llm_throughput --concurrency 1,8,32 --n 64` (64/64 valid at all three levels):
+
+  | Conc | Valid/min | tok/s | p50 s | p95 s |
   |---:|---:|---:|---:|---:|
   | 1 | 65.8 | 175.1 | 0.8731 | 1.6029 |
   | 8 | 310.5 | 821.4 | 1.3401 | 2.4921 |
   | 32 | 796.5 | 2267.5 | 1.8544 | 3.3896 |
 
-- `bench.sim_speed --seeds 100 --workers 16` en esta laptop (16 núcleos, la misma del lunes): serie media 0.0909 s, p95 0.1137 s. Paralelo, tiempo dentro del proceso: media 0.1741 s, p95 0.2897 s. Reloj de pared: 1.206 s para 100 simulaciones, 0.0121 s por simulación.
-- `bench.budget` con `GPU_PRICE_PER_HOUR=1.99`: la grilla del harness (N en 16/32/48, K en 30/50/100, R en 6/8) cabe entera en 25 min. La más grande es N=48, K=100, R=8 en 8.32 min (39_000 simulaciones, $0.28). Eso queda por debajo de la ventana de 20 a 30 min, así que K sube fuera de la grilla.
-- Combinación elegida: **N=48, K=300, R=8** (23.8 min). Cálculo con 796.5 políticas válidas por minuto a concurrencia 32 y 0.012056 s por simulación (16 workers):
-  - Propuestas: 48 × 8 = 384. Tiempo de LLM: 384 / 796.5 = 0.48 min.
-  - Simulaciones: 48 × 300 × 8 = 115_200 de entrenamiento, más 300 reservadas y 300 de estrés = 115_800.
-  - Tiempo de simulación: 115_800 × 0.012056 / 60 = 23.27 min.
-  - Total: 0.48 + 23.27 = 23.8 min. Costo de GPU a $1.99/h: 23.8 / 60 × 1.99 = $0.79.
-  - El reloj es la simulación. Subir K de 100 a 300 usa la ventana en más semillas por política. N=48 es el tope de la grilla; R=8 es el del plan. Con `SIM_WORKERS=2` el tramo de simulación se alarga ×8 y se sale de la ventana.
-- Hora de inicio, hora de fin y costo de la sesión: la instancia ya fue destruida. El repo no tiene la hora de fin ni el costo cerrado.
+- `bench.sim_speed --seeds 100 --workers 16` on this laptop (16 cores, the same machine as Monday): serial mean 0.0909 s, p95 0.1137 s. Parallel, time inside the process: mean 0.1741 s, p95 0.2897 s. Wall clock: 1.206 s for 100 simulations, 0.0121 s per simulation.
+- `bench.budget` with `GPU_PRICE_PER_HOUR=1.99`: the harness grid (N in 16/32/48, K in 30/50/100, R in 6/8) fits inside 25 min. The largest cell is N=48, K=100, R=8 in 8.32 min (39,000 simulations, $0.28). That is under the 20–30 min window, so K was raised outside the grid.
+- Chosen combination: **N=48, K=300, R=8** (23.8 min). Calculation with 796.5 valid policies per minute at concurrency 32 and 0.012056 s per simulation (16 workers):
+  - Proposals: 48 × 8 = 384. LLM time: 384 / 796.5 = 0.48 min.
+  - Simulations: 48 × 300 × 8 = 115,200 of training, plus 300 reserved and 300 of stress = 115,800.
+  - Simulation time: 115,800 × 0.012056 / 60 = 23.27 min.
+  - Total: 0.48 + 23.27 = 23.8 min. GPU cost at $1.99/h: 23.8 / 60 × 1.99 = $0.79.
+  - The clock is the simulation. Raising K from 100 to 300 spends the window on more seeds per policy. N=48 is the top of the grid. R=8 is the plan’s top. With `SIM_WORKERS=2` the simulation leg stretches ×8 and leaves the window.
+- Start time, end time, and session cost: the instance was already destroyed. The repo does not have the end time or the closed cost.
 
-## Qwen3-32B, misma sesión
+## Qwen3-32B, same session
 
-Cambio con `infra/gpu/gpu.sh serve Qwen/Qwen3-32B` y `wait`, antes de destruir la instancia. El cliente manda `chat_template_kwargs.enable_thinking=false`: sin eso, una de 20 peticiones del 32B no terminaba (dos intentos, ~50 tokens/s sin parar). El 8B de arriba se midió con el thinking por defecto; el JSON guiado igual cerraba solo.
+Switched with `infra/gpu/gpu.sh serve Qwen/Qwen3-32B` and `wait`, before the instance was destroyed. The client sends `chat_template_kwargs.enable_thinking=false`. Without that, one of 20 requests to the 32B did not finish (two attempts, ~50 tokens/s with no stop). The 8B measurement above used default thinking. Guided JSON still closed on its own.
 
-- `bench.llm_smoke --n 20`: 17/20 válidas, tasa 0.850. p50 1.598 s, p95 2.660 s, 425.0 tokens de salida por segundo. Las 3 inválidas traen `rule=WEIGHTED` sin `weights`; el esquema guiado los deja opcionales y Pydantic los exige.
+- `bench.llm_smoke --n 20`: 17/20 valid, rate 0.850. p50 1.598 s, p95 2.660 s, 425.0 output tokens per second. The 3 invalid replies have `rule=WEIGHTED` and no `weights`. The guided schema leaves them optional. Pydantic requires them.
 - `bench.llm_throughput --concurrency 1,8,32 --n 64`:
 
-  | conc | válidas/min | tok/s | p50 s | p95 s | válidas |
+  | Conc | Valid/min | tok/s | p50 s | p95 s | Valid |
   |---:|---:|---:|---:|---:|---:|
   | 1 | 48.2 | 49.2 | 0.8762 | 1.8249 | 55/64 |
   | 8 | 275.5 | 281.2 | 1.1111 | 2.4059 | 56/64 |
   | 32 | 634.2 | 675.0 | 2.0813 | 3.7793 | 56/64 |
 
-## Comparación 8B vs 32B
+### 8B against 32B
 
-Misma laptop para la simulación (0.0121 s por simulación, 16 workers). Concurrencia 32:
+Same laptop for simulation (0.0121 s per simulation, 16 workers). Concurrency 32:
 
 | | 8B | 32B |
 |---|---:|---:|
-| JSON válido (smoke, n=20) | 100% | 85% |
-| válidas/min | 796.5 | 634.2 |
+| Valid JSON (smoke, n=20) | 100% | 85% |
+| Valid/min | 796.5 | 634.2 |
 | tok/s | 2267.5 | 675.0 |
 | p50 s | 1.8544 | 2.0813 |
 | p95 s | 3.3896 | 3.7793 |
 
-Con N=48, K=300, R=8 el LLM pide 384 políticas válidas. El 8B tarda 0.48 min; el 32B, 384 / 634.2 = 0.61 min. La simulación sigue en 23.27 min. El total pasa de 23.8 a 23.9 min. N, K y R no cambian: el reloj sigue siendo la simulación. El 8B da más tokens por segundo y no baja de 0.95 de JSON válido, así que sigue como `LLM_MODEL` por defecto. El 32B se evaluará por calidad de política, no por tokens por segundo.
+With N=48, K=300, R=8 the LLM asks for 384 valid policies. The 8B takes 0.48 min. The 32B takes 384 / 634.2 = 0.61 min. Simulation stays at 23.27 min. The total moves from 23.8 to 23.9 min. N, K, and R stay put: the clock is still the simulation. The 8B produces more tokens per second and stays at or above 0.95 valid JSON, so it remains the default `LLM_MODEL`. The 32B is judged on policy quality, not tokens per second.
 
-## Validación job 78fea53a
+## Validation, job 78fea53a
 
-Job `78fea53a-be2d-4bf5-98a3-e9a12b6cba83`, mock, escenario base. Postgres: `started_at` 2026-10-13 17:27:33−06, `finished_at` 18:08:22−06, **2448.5 s (40.8 min)**, 115_500 simulaciones, 385 políticas (1 regla fija + 384 del LLM, 48/48 válidas en las 8 rondas). Semillas de búsqueda: 1–300. El job no corrió holdout (`params` no trae `holdout`; en `metrics` solo hay `seed_set=train`). La mejor política aparece en la ronda 5.
+Job `78fea53a-be2d-4bf5-98a3-e9a12b6cba83`, mock, base scenario. Postgres: `started_at` 2026-10-13 17:27:33−06, `finished_at` 18:08:22−06, **2448.5 s (40.8 min)**, 115,500 simulations, 385 policies (1 fixed rule + 384 from the LLM, 48/48 valid in all 8 rounds). Search seeds: 1–300. The job did not run holdout (`params` has no `holdout`; `metrics` only has `seed_set=train`). The best policy appears in round 5.
 
-El simulador no se tocó. No apareció un bug de conservación, de semillas ni de mantenimiento apagado, así que no hay test de regresión nuevo.
+The simulator was not changed. No conservation bug, seed bug, or maintenance-off bug showed up, so there is no new regression test.
 
-### Objetivo de entrenamiento y contribución de cada KPI
+### Training objective and each KPI
 
-Fórmula (`sim/objective.py`, pesos en `sim/objective_weights.json`). Mayor es mejor y no está recortado a [0, 1]:
+Means over the 300 search seeds. The terms rebuild the stored objective (0.236458 and 0.957665). The interval on the row is the one the job stored: mean ± 1.96·s/√n, not the bootstrap further down.
 
-`throughput/400 + on_time_rate/1 − unplanned_h/40 − 0.5·planned_h/20 − 0.5·costo/10000`
-
-Medias sobre las 300 semillas de búsqueda. Los términos reconstruyen el objetivo guardado (0.236458 y 0.957665). El intervalo de la fila es el que ya guardó el job: media ± 1.96·s/√n, no el bootstrap de más abajo.
-
-| | regla fija | mejor (ronda 5) |
+| | Fixed rule | Best (round 5) |
 |---|---:|---:|
-| objetivo | 0.2365 (0.2058, 0.2671) | 0.9577 (0.9440, 0.9714) |
-| throughput (órdenes completadas) | 736.16 | 822.49 |
-| % a tiempo | 0.4591 | 0.9852 |
-| paro no planificado (h) | 20.58 | 12.24 |
-| paro planificado (h) | 20.77 | 32.49 |
-| costo de mantenimiento | 20_586 | 19_313 |
-| órdenes creadas | 839.51 | 839.51 |
+| Objective | 0.2365 (0.2058, 0.2671) | 0.9577 (0.9440, 0.9714) |
+| Throughput (orders completed) | 736.16 | 822.49 |
+| On time | 0.4591 | 0.9852 |
+| Unplanned downtime (h) | 20.58 | 12.24 |
+| Planned downtime (h) | 20.77 | 32.49 |
+| Maintenance cost | 20,586 | 19,313 |
+| Orders created | 839.51 | 839.51 |
 | WIP | 103.35 | 17.02 |
-| fallas | 46.05 | 27.73 |
-| mantenimientos preventivos | 103.86 | 162.50 |
+| Failures | 46.05 | 27.73 |
+| Preventive maintenances | 103.86 | 162.50 |
 
-| término | peso | fija | mejor | diferencia |
+| Term | Weight | Fixed | Best | Difference |
 |---|---:|---:|---:|---:|
 | throughput / 400 | 1 | 1.8404 | 2.0562 | +0.2158 |
-| % a tiempo | 1 | 0.4591 | 0.9852 | +0.5261 |
-| − paro no planificado / 40 | 1 | −0.5145 | −0.3060 | +0.2085 |
-| − 0.5 · paro planificado / 20 | 0.5 | −0.5193 | −0.8122 | −0.2929 |
-| − 0.5 · costo / 10000 | 0.5 | −1.0293 | −0.9656 | +0.0637 |
-| suma | | 0.2365 | 0.9577 | +0.7212 |
+| on time | 1 | 0.4591 | 0.9852 | +0.5261 |
+| − unplanned downtime / 40 | 1 | −0.5145 | −0.3060 | +0.2085 |
+| − 0.5 · planned downtime / 20 | 0.5 | −0.5193 | −0.8122 | −0.2929 |
+| − 0.5 · cost / 10000 | 0.5 | −1.0293 | −0.9656 | +0.0637 |
+| Sum | | 0.2365 | 0.9577 | +0.7212 |
 
-El salto lo explica el **% a tiempo** (0.46 → 0.99, +0.53 de los +0.72). Throughput y menos paro no planificado suman unos +0.21 cada uno. El paro planificado empuja al revés: la ganadora hace más preventivo.
+The jump is mostly **on time** (0.46 → 0.99, +0.53 of the +0.72). Throughput and less unplanned downtime add about +0.21 each. Planned downtime pushes the other way: the winner does more preventive work.
 
-La referencia de throughput es 400 y la línea completa unas 740–820 órdenes, así que ese término vale ~2 y sube el nivel de las dos políticas. La regla fija queda en 0.24 porque llega tarde y acumula WIP, no porque el objetivo la recorte.
+The throughput reference is 400 and the line completes about 740–820 orders, so that term is worth ~2 and lifts both policies. The fixed rule sits at 0.24 because it is late and piles up WIP.
 
-La ganadora es WEIGHTED (pesos plazo 0.423, setup 0.093, riesgo de desgaste 0.484), `max_pm_per_shift=2`, umbrales M3=0.95, M4=0.92, M5=0.83. M1 y M2 no vienen en el JSON y usan el umbral por defecto 0.75. La regla fija es EDD, umbral 0.75 en las cinco y un preventivo por turno. La ganadora hace más preventivo (162 vs 104) y más paro planificado (32.5 h vs 20.8 h). No gana apagando el mantenimiento.
+The winner is WEIGHTED (weights due date 0.423, setup 0.093, wear risk 0.484), `max_pm_per_shift=2`, thresholds M3=0.95, M4=0.92, M5=0.83. M1 and M2 are absent from the JSON and use the default threshold 0.75. The fixed rule is EDD, threshold 0.75 on all five machines, one preventive stop per shift. The winner does more preventive work (162 against 104) and more planned downtime (32.5 h against 20.8 h). It does not win by turning maintenance off.
 
-`orders_created` es igual en las dos (839.51). En cada semilla, creadas = completadas + WIP. La demanda no depende de la política.
+`orders_created` is the same for both (839.51). On each seed, created = completed + WIP. Demand does not depend on the policy.
 
-### Holdout y estrés
+### Holdout and stress
 
-Holdout: semillas 1_000_001–1_000_300, las de `run_search` cuando `holdout_seeds=300`. Intersección con 1–300: vacía. Estrés, las mismas semillas, con `scenario_config`: fallas ×1.3 y demanda ×1.5. IC 95% por bootstrap del objetivo por semilla: 2000 remuestreos, `numpy.random.Generator(PCG64(0))`, percentiles 2.5 y 97.5 de la media. Conservación de órdenes: 0 fallos en las cuatro evaluaciones. `orders_created` coincide entre políticas (holdout 838.83, estrés 1259.12).
+Holdout: seeds 1,000,001–1,000,300. Intersection with 1–300: empty. Stress uses the same seeds, failures ×1.3 and demand ×1.5. 95% CI by bootstrap of the per-seed objective: 2,000 resamples, `numpy.random.Generator(PCG64(0))`, percentiles 2.5 and 97.5 of the mean. Order conservation: 0 failures in the four evaluations. `orders_created` matches across policies (holdout 838.83, stress 1259.12).
 
-| | objetivo | IC 95% | % a tiempo | throughput | paro no planificado (h) |
+| | Objective | 95% CI | On time | Throughput | Unplanned downtime (h) |
 |---|---:|---:|---:|---:|---:|
-| fija, holdout | 0.2483 | (0.2175, 0.2773) | 0.4625 | 737.04 | 20.55 |
-| mejor, holdout | 0.9579 | (0.9439, 0.9715) | 0.9868 | 822.20 | 12.31 |
-| fija, estrés | −0.3210 | (−0.3392, −0.3029) | 0.1259 | 738.56 | 24.76 |
-| mejor, estrés | −0.0693 | (−0.0942, −0.0464) | 0.2744 | 955.87 | 22.10 |
+| Fixed, holdout | 0.2483 | (0.2175, 0.2773) | 0.4625 | 737.04 | 20.55 |
+| Best, holdout | 0.9579 | (0.9439, 0.9715) | 0.9868 | 822.20 | 12.31 |
+| Fixed, stress | −0.3210 | (−0.3392, −0.3029) | 0.1259 | 738.56 | 24.76 |
+| Best, stress | −0.0693 | (−0.0942, −0.0464) | 0.2744 | 955.87 | 22.10 |
 
-En holdout el hueco se mantiene (+0.71) y otra vez lo lleva el % a tiempo (+0.52). En estrés las dos quedan negativas: la demanda sube a 1259 órdenes y el WIP sigue alto (521 la fija, 303 la ganadora). El hueco baja a +0.25 y ahí el término grande es el throughput (955.9 vs 738.6). La ganadora sigue por delante; el intervalo no se cruza en ninguno de los dos escenarios.
+On holdout the gap holds (+0.71) and on time carries it again (+0.52). Under stress both go negative: demand rises to 1,259 orders and WIP stays high (521 fixed, 303 winner). The gap falls to +0.25 and the large term is throughput (955.9 against 738.6). The winner stays ahead. The intervals do not cross in either scenario.
 
-### Workers y los 40 min
+### Workers and the 40 minutes
 
-`jobs.params` no trae `workers`. `_run_search` deja `workers=None` y `run_search` usa `Settings().SIM_WORKERS`. El `.env` de esta corrida tiene `SIM_WORKERS=16`. Con el default del código (2) y el tiempo interno de una simulación en ráfaga (~0.17 s), 115_500 simulaciones serían unas 2.7 h. El job tardó 40.8 min, que encaja con 16 workers al ritmo sostenido de abajo.
+`jobs.params` has no `workers`. `_run_search` leaves `workers=None` and `run_search` uses `Settings().SIM_WORKERS`. The `.env` of this run has `SIM_WORKERS=16`. At the code default (2) and the in-process time of a burst (~0.17 s), 115,500 simulations would be about 2.7 h. The job took 40.8 min, which matches 16 workers at the sustained rate below.
 
-Reloj del job: 2448.5 / 115_500 = **0.0212 s por simulación**. El benchmark del mismo día (100 semillas, un solo pool) fue **0.0121 s**. Repetición el 13 oct por la tarde, regla fija, 300 semillas, 16 workers:
+Job clock: 2448.5 / 115,500 = **0.0212 s per simulation**. The same day’s benchmark (100 seeds, one pool) was **0.0121 s**. Repeat on the afternoon of 13 Oct, fixed rule, 300 seeds, 16 workers:
 
-| tanda | reloj | tiempo dentro del proceso | s/sim efectivos |
+| Batch | Wall clock | Time inside the process | Effective s/sim |
 |---|---:|---:|---:|
-| primer pool nuevo | 3.39 s | 0.174 s | 0.0113 |
-| pools nuevos 2–6 | ~7.2 s | ~0.37 s | ~0.024 |
-| seis tandas en un pool ya abierto | ~7.1 s | ~0.35 s | ~0.024 |
+| First new pool | 3.39 s | 0.174 s | 0.0113 |
+| New pools 2–6 | ~7.2 s | ~0.37 s | ~0.024 |
+| Six batches on an already open pool | ~7.1 s | ~0.35 s | ~0.024 |
 
-La primera tanda reproduce el benchmark. A partir de la segunda, el tiempo dentro del proceso se duplica (0.17 s → 0.37 s) y el reloj de pared lo sigue. Un pool compartido no acorta la tanda: el arranque de `ProcessPoolExecutor` no es el hueco. Postgres escribe una fila de `metrics` por política al cerrar el job (385 filas, eventos de ronda entre 18:08:21 y 18:08:22), no una escritura por simulación.
+The first batch reproduces the benchmark. From the second, time inside the process doubles (0.17 s → 0.37 s) and the wall clock follows. A shared pool does not shorten the batch: `ProcessPoolExecutor` startup is not the gap. Postgres writes one `metrics` row per policy when the job closes (385 rows, round events between 18:08:21 and 18:08:22), not one write per simulation.
 
-16 núcleos a 0.34 s internos dan 300 × 0.34 / 16 = 6.4 s por política. El job hizo 2448.5 / 385 = 6.36 s por política. El paralelo estaba ocupado; el extra frente a los 24 min esperados es la frecuencia sostenida del Core Ultra 7 255H. La ráfaga de 100 semillas cabe en turbo y el job de 40 min no. No hay un cambio pequeño de código que devuelva el 0.0121 s mientras la CPU sigue cargada.
+16 cores at 0.34 s internal give 300 × 0.34 / 16 = 6.4 s per policy. The job did 2448.5 / 385 = 6.36 s per policy. The parallel pool was busy. The extra time against the expected 24 min is the sustained frequency of the Core Ultra 7 255H. A 100-seed burst fits in turbo. A 40-minute job does not. No small code change returns the 0.0121 s while the CPU stays loaded.
 
-### K para 20 a 30 min
+### K for 20 to 30 minutes
 
-Al ritmo del job (0.0212 s/sim) y con 385 políticas (1 + 48×8, todas válidas, como esta corrida):
+At the job’s rate (0.0212 s/sim) and with 385 policies (1 + 48×8, all valid, as in this run):
 
-| K | simulaciones | minutos |
+| K | Simulations | Minutes |
 |---:|---:|---:|
-| 150 | 57_750 | 20.4 |
-| 180 | 69_300 | 24.5 |
-| 200 | 77_000 | 27.2 |
-| 300 | 115_500 | 40.8 |
+| 150 | 57,750 | 20.4 |
+| 180 | 69,300 | 24.5 |
+| 200 | 77,000 | 27.2 |
+| 300 | 115,500 | 40.8 |
 
-**K por defecto: 180** (perfil `default` en `search/config.py`). N y R siguen en 48 y 8.
+**Default K: 180** (profile `default` in `search/config.py`). N and R stay at 48 and 8.
 
-Cálculo, con el ritmo sostenido del job (0.0212 s/sim) y 385 políticas (1 regla fija + 48×8, todas válidas):
+- Profile `default`, K=180: 385 × 180 × 0.0212 = 1469 s = **24.5 min**.
+- Profile `final`, K=300: 385 × 300 × 0.0212 = 2448 s = **40.8 min**. That is the long run if time remains at the end. N, R, and the rest match the default.
+- Profile `smoke`: N=2, K=2, R=2, TOP_K=2, holdout 0. Tests use it. It is not a search budget.
 
-- Perfil `default`, K=180: 385 × 180 × 0.0212 = 1469 s = **24.5 min**.
-- Perfil `final`, K=300: 385 × 300 × 0.0212 = 2448 s = **40.8 min**. Es la corrida larga si sobra tiempo al cierre; N, R y el resto iguales al default.
-- Perfil `smoke`: N=2, K=2, R=2, TOP_K=2, holdout 0. Lo usan los tests. No es un presupuesto de búsqueda.
+On the laptop, `SIM_WORKERS=16` is required. `SearchConfig.from_profile("final")` and `from_profile("smoke")` build those two profiles. `SearchConfig()` is the default.
 
-En la laptop hace falta `SIM_WORKERS=16`. `SearchConfig.from_profile("final")` y `from_profile("smoke")` arman esos dos perfiles; `SearchConfig()` es el default.
+## Wednesday 14, Optuna
 
-## Miércoles 14, Optuna
+Optuna (TPE) baseline with the same budget as the loop: `K + N*R*K`. Profile `default` (N=48, K=180, R=8) is **69,300** training simulations, seeds `range(1, 181)`, scenario `base`. Trial 0 is `fixed_rule_policy()`, the same as policy 0 of the loop. `SIM_WORKERS=16`. Code: `baselines/optuna_search.py`, commit `d2c7243`. Command: `uv run python -m baselines.optuna_search --profile default --seed 1`.
 
-Línea base Optuna (TPE) con el mismo presupuesto que el bucle: `K + N*R*K`. Perfil
-`default` (N=48, K=180, R=8) da **69_300 simulaciones** de entrenamiento, en las semillas
-`range(1, 181)` y el escenario `base`. El trial 0 es `fixed_rule_policy()`, igual que la
-política 0 del bucle. `SIM_WORKERS=16`. Código: `baselines/optuna_search.py`, commit
-`d2c7243`; se corrió con `uv run python -m baselines.optuna_search --profile default --seed 1`.
+Search space, using the ranges in `policy/schema.py`: `pm_wear_threshold` per machine (0.30–0.95), `max_pm_per_shift` (0–3), dispatch rule in {EDD, SPT, WEIGHTED, CRITICAL_RATIO}, and, when the rule is WEIGHTED, the three weights (normalized to sum 1 by the schema). `rules` is empty. Optuna does not write conditional rules.
 
-Espacio de búsqueda, con los rangos de los validadores de `policy/schema.py`: umbral
-`pm_wear_threshold` por máquina (0.30–0.95), `max_pm_per_shift` (0–3), la regla de despacho
-en {EDD, SPT, WEIGHTED, CRITICAL_RATIO} y, cuando la regla es WEIGHTED, los tres pesos
-(normalizados a suma 1 por el schema). `rules` va vacía: Optuna no escribe reglas
-condicionales. Esa es la ventaja estructural del LLM y conviene tenerla a la vista al leer
-la tabla.
-
-| método | simulaciones | mejor objetivo | regla fija | trials | min |
+| Method | Simulations | Best objective | Fixed rule | Trials | Min |
 |---|---:|---:|---:|---:|---:|
-| Optuna TPE | 69_300 | 1.0061 | 0.2489 | 385 | 13.1 |
+| Optuna TPE | 69,300 | 1.0061 | 0.2489 | 385 | 13.1 |
 
-Curva del mejor objetivo acumulado, del `history` del JSON:
+Best-so-far curve, from the JSON `history`:
 
-| simulaciones | 180 | 8_640 | 17_280 | 34_560 | 51_840 | 69_300 |
+| Simulations | 180 | 8,640 | 17,280 | 34,560 | 51,840 | 69,300 |
 |---|---:|---:|---:|---:|---:|---:|
-| mejor hasta ahí | 0.2489 | 0.9886 | 0.9948 | 0.9995 | 1.0061 | 1.0061 |
+| Best so far | 0.2489 | 0.9886 | 0.9948 | 0.9995 | 1.0061 | 1.0061 |
 
-Casi todo el valor cae en las primeras 8_640 simulaciones. La política ganadora es
-`CRITICAL_RATIO`, `max_pm_per_shift=2`, umbrales entre 0.734 y 0.828 por máquina, sin
-reglas. Ningún trial quedó inválido (`failed_trials=0`).
+Almost all of the value lands in the first 8,640 simulations. The winning policy is `CRITICAL_RATIO`, `max_pm_per_shift=2`, thresholds between 0.734 and 0.828 per machine, no rules. No trial was invalid (`failed_trials=0`).
 
-Sobre el reloj: 786 s para 69_300 simulaciones dan **0.0113 s/sim** sostenidos con 16
-workers, cerca de los 0.0121 s de la serie corta del lunes y lejos de los 0.0212 s/sim del
-job `78fea53a` de 40.8 min, que son la base de la estimación de 24.5 min de más arriba. El
-simulador no cambió entre las dos mediciones y no se midió un cambio de código que explique
-el factor 1.9; queda anotado como discrepancia abierta. Para comparar métodos la vara sigue
-siendo el número de simulaciones, no el minuto.
+On the clock: 786 s for 69,300 simulations is **0.0113 s/sim** sustained with 16 workers, close to the 0.0121 s of Monday’s short series and far from the 0.0212 s/sim of job `78fea53a` (40.8 min), which is the basis of the 24.5 min estimate above. The simulator did not change between the two measurements, and no code change was measured that explains the factor of 1.9. It stays as an open discrepancy. Methods are compared by simulation count, not by the minute.
 
-Lo que esta tabla no dice: no hay holdout (el presupuesto es de entrenamiento y es el mismo
-por definición, así que comparar en él favorece a todos por igual). La tabla de los cuatro
-métodos con la misma vara es el Prompt 17.
+This table has no holdout. The budget is training, and it is the same by definition, so comparing inside it favors every method the same way. The four-method table is the next section.
 
-## Miércoles 14, LLM sin retroalimentación
+## Wednesday 14, LLM with no feedback
 
-El LLM propone `N*R` políticas con un solo prompt fijo, sin ver objetivos, KPIs ni el top-k
-de rondas anteriores. Mismo presupuesto que una búsqueda del perfil y mismos seeds de
-entrenamiento: perfil `default` (N=48, K=180, R=8) → **69_300 simulaciones**, semillas
-`range(1, 181)`, escenario `base`, `SIM_WORKERS=16`. Las semillas de muestreo son las del
-bucle (`rng_seed + lote*10_000`), para que la única variable sea el texto del prompt.
-Código: `baselines/llm_nofeedback.py`, commit `726e653`; corrida con
-`uv run python -m baselines.llm_nofeedback --profile default --seed 1` contra el mock local.
+The LLM proposes `N*R` policies from one fixed prompt, without seeing objectives, KPIs, or the top-k of earlier rounds. Same budget and same training seeds as a search of the profile: `default` (N=48, K=180, R=8) → **69,300** simulations, seeds `range(1, 181)`, scenario `base`, `SIM_WORKERS=16`. Sampling seeds match the loop (`rng_seed + batch*10_000`), so the only intended variable is the prompt text. Code: `baselines/llm_nofeedback.py`, commit `726e653`. Command: `uv run python -m baselines.llm_nofeedback --profile default --seed 1` against the local mock.
 
-| método | simulaciones | mejor objetivo | regla fija | válidas | min |
+| Method | Simulations | Best objective | Fixed rule | Valid | Min |
 |---|---:|---:|---:|---:|---:|
-| LLM sin retroalimentación | 69_300 | 0.9592 | 0.2489 | 384/384 | 15.6 |
-| Optuna TPE (de la sección de arriba) | 69_300 | 1.0061 | 0.2489 | — | 13.1 |
+| LLM, no feedback | 69,300 | 0.9592 | 0.2489 | 384/384 | 15.6 |
+| Optuna TPE (section above) | 69,300 | 1.0061 | 0.2489 | — | 13.1 |
 
-Las dos filas son comparables: mismo K, mismas 180 semillas, mismo escenario y el mismo
-presupuesto. Con esa vara, Optuna le saca 0.047 al LLM de un solo disparo.
+The two rows share K, the 180 seeds, the scenario, and the budget. On that yardstick Optuna leads the one-shot LLM by 0.047.
 
-Curva del mejor objetivo acumulado, del `history` del JSON:
+Best-so-far curve, from the JSON `history`:
 
-| simulaciones | 180 | 8_820 | 17_460 | 34_740 | 43_380 | 69_300 |
+| Simulations | 180 | 8,820 | 17,460 | 34,740 | 43,380 | 69,300 |
 |---|---:|---:|---:|---:|---:|---:|
-| mejor hasta ahí | 0.2489 | 0.9009 | 0.9009 | 0.9206 | 0.9592 | 0.9592 |
+| Best so far | 0.2489 | 0.9009 | 0.9009 | 0.9206 | 0.9592 | 0.9592 |
 
-Casi todo el salto está en el primer lote, y del quinto al octavo no se mueve. La política
-ganadora es `WEIGHTED` con pesos (0.423, 0.484, 0.093), umbrales M3=0.95, M4=0.92, M5=0.83,
-`max_pm_per_shift=2` y una regla (`queue_len_gt=4 → BATCH_SAME_PRODUCT`). Ninguna propuesta
-salió inválida.
+Almost all of the jump is in the first batch. From the fifth batch to the eighth, nothing moves. The winning policy is `WEIGHTED` with weights (0.423, 0.484, 0.093), thresholds M3=0.95, M4=0.92, M5=0.83, `max_pm_per_shift=2`, and one rule (`queue_len_gt=4 → BATCH_SAME_PRODUCT`). No proposal was invalid.
 
-**Lo que este número no mide, y hay que decirlo al lado.** Contra el mock, esta línea base
-no puede separarse del bucle. El mock deriva cada política de la `seed` y nunca lee el
-contenido del prompt (`llm/mock_server.py`: `_seed_from` mira `body["seed"]` y
-`generate_policy(seed)` no toca los mensajes), así que con las mismas semillas de muestreo
-los 384 candidatos son el mismo conjunto que vería el bucle y el mejor objetivo sale igual
-por construcción. El 0.9592 es el techo de 384 sorteos del mock, no una medida de lo que
-aporta la retroalimentación. Esa comparación necesita vLLM, que sí lee el prompt, y se
-repite en la sesión GPU 2. El Prompt 17 confirma la igualdad con la búsqueda del bucle
-corrida al mismo perfil.
+**What this number does not measure.** Against the mock, this baseline cannot be separated from the loop. The mock derives each policy from the `seed` and never reads the prompt (`llm/mock_server.py`: `_seed_from` looks at `body["seed"]` and `generate_policy(seed)` ignores the messages). With the same sampling seeds, the 384 candidates are the same set the loop would see, and the best objective matches by construction. 0.9592 is the ceiling of 384 mock draws, not a measure of feedback. That comparison needs vLLM, which does read the prompt. It is repeated in GPU session 2.
 
-Sobre el reloj: 15.6 min con 16 workers (0.0135 s/sim), entre los 0.0113 s/sim de la corrida
-de Optuna y los 0.0212 s/sim del job `78fea53a`.
+On the clock: 15.6 min with 16 workers (0.0135 s/sim), between Optuna’s 0.0113 s/sim and job `78fea53a`’s 0.0212 s/sim.
 
-## Miércoles 14, curva de eficiencia
+## Wednesday 14, efficiency curve
 
-Métrica de la sección 7 del plan: el mejor objetivo encontrado contra simulaciones gastadas,
-una curva por método, todos con el mismo presupuesto de entrenamiento (perfil `default`,
-K=180, semillas `range(1, 181)`, escenario `base`). El umbral se fijó **antes** de mirar los
-resultados, sobre la mejora y no sobre el objetivo (que no está acotado a 0–1):
+Best objective found against simulations spent, one curve per method, all on the same training budget (profile `default`, K=180, seeds `range(1, 181)`, scenario `base`). The threshold was fixed **before** looking at the results, on the improvement, not on the raw objective (which is not bounded to 0–1):
 
 `target = fixed + 0.9 * (best_global - fixed) = 0.2489 + 0.9*(1.0061 - 0.2489) = 0.9303`
 
-Código: `eval/efficiency.py`, commit `efd808a`. La búsqueda del bucle de este perfil y semilla
-se corrió nueva (`search.loop --seed 1 --holdout 0`); el job `78fea53a` es K=300 y no era
-comparable. Se usó `--holdout 0` porque esas semillas se suman a `simulations_total` y
-romperían el presupuesto igual.
+Code: `eval/efficiency.py`, commit `efd808a`. The loop search for this profile and seed was run fresh (`search.loop --seed 1 --holdout 0`). Job `78fea53a` is K=300 and was not comparable. `--holdout 0` was used because those seeds are added to `simulations_total` and would break the equal budget.
 
-| método | mejor train | holdout | IC 95% | % a tiempo holdout | sims gastadas | sims al 90% | notas |
+| Method | Best train | Holdout | 95% CI | On time, holdout | Sims spent | Sims to 90% | Notes |
 |---|---:|---:|---|---:|---:|---:|---|
-| regla fija | 0.2489 | 0.2483 | [0.2175, 0.2773] | 46.2% | 180 | no alcanza | definitivo |
-| Optuna TPE | 1.0061 | 0.9906 | [0.9779, 1.0031] | 99.6% | 69_300 | 3_060 | definitivo |
-| LLM sin retroalimentación | 0.9592 | 0.9579 | [0.9439, 0.9715] | 98.7% | 69_300 | 43_380 | mock, no es medida del LLM |
-| bucle con retroalimentación | 0.9592 | 0.9579 | [0.9439, 0.9715] | 98.7% | 69_300 | 43_380 | mock, no es medida del LLM |
+| Fixed rule | 0.2489 | 0.2483 | [0.2175, 0.2773] | 46.2% | 180 | does not reach | definitive |
+| Optuna TPE | 1.0061 | 0.9906 | [0.9779, 1.0031] | 99.6% | 69,300 | 3,060 | definitive |
+| LLM, no feedback | 0.9592 | 0.9579 | [0.9439, 0.9715] | 98.7% | 69,300 | 43,380 | mock, not a measure of the LLM |
+| Feedback loop | 0.9592 | 0.9579 | [0.9439, 0.9715] | 98.7% | 69,300 | 43,380 | mock, not a measure of the LLM |
 
-Holdout: las 300 semillas desde 1_000_001, las de `run_search`, con IC 95% por bootstrap de
-2000 remuestreos y `PCG64(0)`. Son 4 × 300 = 1_200 simulaciones **fuera** del presupuesto de
-búsqueda. El % a tiempo se recalcula desde el `best_policy` guardado de cada método.
+Holdout: the 300 seeds from 1,000,001, with a 95% CI by bootstrap of 2,000 resamples and `PCG64(0)`. That is 4 × 300 = 1,200 simulations **outside** the search budget. On-time rate is recomputed from each method’s stored `best_policy`.
 
-Cruce con la validación del martes, que no se tocó: la regla fija da 46.2% a tiempo con IC
-[0.2175, 0.2773] y la política del bucle 98.7% con [0.9439, 0.9715], frente a los (0.218,
-0.277) y (0.944, 0.972) que ya estaban en `BENCHMARKS.md`. El pipeline de holdout y bootstrap
-reproduce esos números, así que la comparación de arriba se apoya en el mismo instrumento.
+Cross-check with Tuesday’s validation, which was left untouched: the fixed rule is 46.2% on time with CI [0.2175, 0.2773] and the loop policy is 98.7% with [0.9439, 0.9715], against the (0.218, 0.277) and (0.944, 0.972) already in this file. The holdout and bootstrap pipeline reproduces those numbers.
 
-**Qué se puede concluir hoy y qué no.** La comparación definitiva de esta tabla es la regla
-fija contra Optuna, porque ninguna de las dos pasa por el LLM. Optuna gana en las 180 semillas
-de entrenamiento (1.0061 contra 0.2489) y en holdout (0.9906 contra 0.2483), y llega al umbral
-en **3_060** simulaciones contra las 43_380 del LLM de un solo disparo y del bucle.
+**What this table can support.** The definitive comparison here is the fixed rule against Optuna, because neither goes through the LLM. Optuna wins on the 180 training seeds (1.0061 against 0.2489) and on holdout (0.9906 against 0.2483), and it reaches the threshold in **3,060** simulations against 43,380 for the one-shot LLM and the loop.
 
-Las dos filas del LLM son **el mismo número por construcción**, no por casualidad: las curvas
-son idénticas punto por punto (9 puntos, los mismos valores). El mock deriva cada política de
-la semilla y no lee el prompt, y las dos corridas usan las mismas semillas de muestreo, así
-que los 384 candidatos son el mismo conjunto y el orden por lotes es el mismo que por rondas.
-Lo que esa igualdad mide es el techo de 384 sorteos del mock, no lo que aporta la
-retroalimentación. Como el mock es un generador aleatorio sobre el espacio de políticas, la
-comparación que sí queda medida es **TPE contra búsqueda aleatoria**: 1.0061 contra 0.9592 y
-3_060 contra 43_380 simulaciones es la eficiencia de muestreo de TPE, y el resultado es que le
-saca 0.047 con catorce veces menos simulaciones.
+The two LLM rows are **the same number by construction**. The curves match point for point (9 points, the same values). The mock derives each policy from the seed and does not read the prompt, and both runs use the same sampling seeds, so the 384 candidates are the same set and the batch order matches the round order. What that equality measures is the ceiling of 384 mock draws, not what feedback adds. The measured comparison is **TPE against random search**: 1.0061 against 0.9592, and 3,060 against 43,380 simulations. TPE leads by 0.047 with about fourteen times fewer simulations.
 
-La ventaja estructural del LLM —hasta 5 reglas condicionales, que Optuna no escribe nunca—
-no se puede evaluar con el mock. La política ganadora del mock usa una regla
-(`queue_len_gt=4 → BATCH_SAME_PRODUCT`) y aun así pierde, pero eso no dice nada sobre reglas
-escritas por un LLM: dice que 384 sorteos no le ganan a TPE. Si el LLM llega a un resultado
-comparable cuando corra contra vLLM, el mensaje es que llega con esas simulaciones y que puede
-explicar el porqué con reglas legibles; hoy esa frase todavía no está medida. La repetición
-contra vLLM es la misma orden, sin tocar código: cada JSON declara su `config.llm_source`
-(`search/repro.py` la deriva del endpoint y del puerto del mock), y `--llm-source` queda solo
-como override para JSON viejos.
+The LLM’s structural advantage — up to 5 conditional rules, which Optuna never writes — cannot be judged with the mock. The mock’s winner uses one rule (`queue_len_gt=4 → BATCH_SAME_PRODUCT`) and still loses. That says 384 draws do not beat TPE. It says nothing about rules written by an LLM. Each JSON declares `config.llm_source` (`search/repro.py` derives it from the endpoint and the mock port). `--llm-source` is only an override for old JSON files.
 
-Granularidad de cada curva: es la granularidad con la que el método puede actuar sobre la
-información. Por trial en Optuna (cada trial ve los anteriores, 385 puntos), por ronda o lote
-en el bucle y en el LLM sin retroalimentación (las N candidatas se proponen juntas y después
-se simulan, 9 puntos; un punto por candidata inflaría al bucle), y un solo punto en la regla
-fija, que se extiende horizontal hasta el presupuesto. Con esa granularidad, la columna "sims
-al 90%" del one-shot y del bucle está cuantizada a lotes de 8_640 simulaciones, así que su
-cruce cae en la frontera del lote y no antes.
+Curve granularity is the granularity at which the method can act on information. Per trial in Optuna (each trial sees the previous ones, 385 points), per round or batch in the loop and the no-feedback LLM (the N candidates are proposed together and then simulated, 9 points; one point per candidate would flatter the loop), and a single point for the fixed rule, extended horizontally to the budget. At that granularity, “sims to 90%” for the one-shot and the loop is quantized to batches of 8,640 simulations, so the crossing falls on a batch boundary.
 
-JSON con las cuatro curvas: `bench/results/efficiency_20261014.json` (local; `bench/results`
-está ignorado). La figura queda para el jueves en Chart.js, como permite el plan: no se sumó
-matplotlib.
+JSON with the four curves: `bench/results/efficiency_20261014.json` (local; most of `bench/results` is gitignored). The figure is Chart.js. matplotlib was not added.
 
-## Miércoles 14, calibración con AI4I 2020
+## Wednesday 14, calibration with AI4I 2020
 
-Curva desgaste → riesgo ajustada con AI4I 2020 (UCI 601, 10 000 filas, descargado el
-2026-10-14, sha256 `dc6630cd…c8a8e`). Detalle completo en **`docs/CALIBRATION.md`**, que es el
-documento honesto de qué se calibró y qué no; aquí van solo los números.
+Wear → risk curve fitted with AI4I 2020 (UCI 601, 10,000 rows, downloaded 2026-10-14, sha256 `dc6630cd…c8a8e`). The full account of what was fitted and what was assumed is [`docs/CALIBRATION.md`](CALIBRATION.md). This section keeps the numbers.
 
-Se etiqueta como falla por desgaste TWF ∪ OSF (141 registros), los dos modos que en AI4I solo
-aparecen a desgaste alto. HDF, PWF y RNF tienen tasa plana en todo el rango y son el fondo.
+Labeled as wear failure: TWF ∪ OSF (141 records), the two AI4I modes that appear only at high wear. HDF, PWF, and RNF are flat across the range and are the background.
 
-| parámetro | antes | después (AI4I) |
+| Parameter | Before | After (AI4I) |
 |---|---:|---:|
 | `failure_midpoint` | 0.72 | 0.9500 |
 | `failure_steepness` | 14.0 | 18.0 |
-| `failure_base_per_min` | (0.0015, 0.0012, 0.0018) | **sin cambio** (ver abajo) |
+| `failure_base_per_min` | (0.0015, 0.0012, 0.0018) | **unchanged** (see below) |
 
-**El nivel por minuto NO se calibró**: AI4I no trae duración por registro, así que no hay
-conversión de probabilidad por registro a tasa por minuto con soporte en los datos. El
-parámetro queda como supuesto y así está marcado en `sim/calibrated_params.json`
-(`level_calibrated: false`).
+**The per-minute level was not calibrated.** AI4I has no duration per record, so there is no data-backed conversion from per-record probability to a per-minute rate. The parameter stays an assumption, marked in `sim/calibrated_params.json` (`level_calibrated: false`).
 
-Impacto, con la misma política y 100 semillas de holdout (1 000 001–1 000 100), escenario
-`base`. `uv run python -m bench.calibration_impact`:
+Impact, same policy, 100 holdout seeds (1,000,001–1,000,100), scenario `base`. `uv run python -m bench.calibration_impact`:
 
-| política | config | objetivo | % a tiempo | fallas | paro no plan. (h) |
+| Policy | Config | Objective | On time | Failures | Unplanned downtime (h) |
 |---|---|---:|---:|---:|---:|
-| regla fija | por defecto | 0.2275 | 44.7% | 45.74 | 20.3614 |
-| regla fija | calibrado | 0.7424 | 48.6% | 27.30 | 12.4468 |
-| mejor del bucle | por defecto | 0.9480 | 98.4% | 27.56 | 12.3640 |
-| mejor del bucle | calibrado | 1.4047 | 99.2% | 4.58 | 1.9679 |
+| Fixed rule | default | 0.2275 | 44.7% | 45.74 | 20.3614 |
+| Fixed rule | calibrated | 0.7424 | 48.6% | 27.30 | 12.4468 |
+| Best of the loop | default | 0.9480 | 98.4% | 27.56 | 12.3640 |
+| Best of the loop | calibrated | 1.4047 | 99.2% | 4.58 | 1.9679 |
 
-El **% a tiempo de la tarjeta aguanta**: 44.7% → 48.6% y 98.4% → 99.2%. La historia
-"46% → 99%" no dependía de la calibración. Las dos filas "por defecto" reproducen la
-validación del martes (44.7% contra 46.3%, 98.4% contra 98.7%; son 100 de las 300 semillas).
+The card’s **on-time rate holds**: 44.7% → 48.6% and 98.4% → 99.2%. The story “46% → 99%” did not depend on the calibration. The two “default” rows reproduce Tuesday’s validation on 100 of the 300 seeds (44.7% against 46.3%, 98.4% against 98.7%).
 
-El objetivo compuesto sí se mueve mucho (0.948 → 1.4047), pero **no es una mejora del
-método**: el objetivo no está acotado a 0–1 y el término de throughput pesa, así que una
-planta más benigna produce más. **Los objetivos de dos configuraciones distintas no son
-comparables entre sí.** Las tablas de eficiencia de más arriba se midieron con midpoint 0.72
-y steepness 14. Las filas «calibrado» de esta tabla ya usan 0.95 y 18, pero esa forma todavía
-no era el default. El corte que la adopta está más abajo.
+The composite objective moves a lot (0.948 → 1.4047). **That is not a better method.** The objective is not bounded to 0–1 and the throughput term has weight, so a gentler plant scores higher. **Objectives from two different plant configs are not comparable.** Efficiency tables above this section were measured at midpoint 0.72 and steepness 14. The “calibrated” rows here already use 0.95 and 18, but that shape was not yet the default. The cut that adopts it is next.
 
-## Miércoles 14, sesión GPU 2 (Qwen3-8B, vLLM)
+## Wednesday 14, GPU session 2 (Qwen3-8B, vLLM)
 
-Planta de antes del corte: `failure_midpoint` 0.72, `failure_steepness` 14. Estos objetivos
-no se comparan con los de la sección «Corte de calibración».
+Plant from before the cut: `failure_midpoint` 0.72, `failure_steepness` 14. These objectives are not compared with the calibration-cut section.
 
-`make gpu2` con perfil `default`, seed 1, holdout 300, `SIM_WORKERS=16` y
-`LLM_MODEL=Qwen/Qwen3-8B` por el túnel `http://127.0.0.1:8000/v1`. El bucle es el job
-`4c3fe819-b308-45f0-870d-407854e9f02e`: `started_at` 2026-10-14 14:02:17−06, `finished_at`
-14:20:15−06 (1078 s). `llm_source=vllm`, commit `0d94141`. 384/384 propuestas válidas, 0
-inválidas. `simulations_total` del job es **70_500** porque suma las 1_200 de holdout y estrés
-(4 × 300); la curva de entrenamiento cierra en **69_300**, el mismo presupuesto que Optuna y
-que el one-shot. La regla fija y Optuna de esta tabla son las corridas del miércoles (no
-pasaron por la GPU). El one-shot también fue 384/384 válidas.
+`make gpu2` with profile `default`, seed 1, holdout 300, `SIM_WORKERS=16`, and `LLM_MODEL=Qwen/Qwen3-8B` through the tunnel `http://127.0.0.1:8000/v1`. The loop is job `4c3fe819-b308-45f0-870d-407854e9f02e`: `started_at` 2026-10-14 14:02:17−06, `finished_at` 14:20:15−06 (1078 s). `llm_source=vllm`, commit `0d94141`. 384/384 valid proposals, 0 invalid. `simulations_total` is **70,500** because it adds the 1,200 of holdout and stress (4 × 300). The training curve closes at **69,300**, the same budget as Optuna and the one-shot. The fixed rule and Optuna in this table are Wednesday’s local runs. The one-shot was also 384/384 valid.
 
-Tabla que imprimió `eval.efficiency` (`bench/results/efficiency_20261014.json`, umbral
-`0.2489 + 0.9*(1.0061 − 0.2489) = 0.9303`). El IC de holdout es el bootstrap de 2000
-remuestreos con `PCG64(0)`.
+Table printed by `eval.efficiency` (`bench/results/efficiency_20261014.json`, threshold `0.2489 + 0.9*(1.0061 − 0.2489) = 0.9303`). Holdout CI is the bootstrap of 2,000 resamples with `PCG64(0)`.
 
-| método | train | holdout | IC 95% | % a tiempo | sims | sims al 90% | notas |
+| Method | Train | Holdout | 95% CI | On time | Sims | Sims to 90% | Notes |
 |---|---:|---:|---|---:|---:|---|---|
-| regla fija | 0.2489 | 0.2483 | [0.2175, 0.2773] | 46.2% | 180 | no alcanza | definitivo |
-| Optuna TPE | 1.0061 | 0.9906 | [0.9779, 1.0031] | 99.6% | 69_300 | 3_060 | definitivo |
-| LLM sin retroalimentación | 0.8274 | 0.8384 | [0.8239, 0.8531] | 83.2% | 69_300 | no alcanza | vLLM real |
-| bucle con retroalimentación | 0.8712 | 0.8772 | [0.8657, 0.8885] | 89.9% | 70_500 | no alcanza | vLLM real |
+| Fixed rule | 0.2489 | 0.2483 | [0.2175, 0.2773] | 46.2% | 180 | does not reach | definitive |
+| Optuna TPE | 1.0061 | 0.9906 | [0.9779, 1.0031] | 99.6% | 69,300 | 3,060 | definitive |
+| LLM, no feedback | 0.8274 | 0.8384 | [0.8239, 0.8531] | 83.2% | 69,300 | does not reach | real vLLM |
+| Feedback loop | 0.8712 | 0.8772 | [0.8657, 0.8885] | 89.9% | 70,500 | does not reach | real vLLM |
 
-Precisión del JSON, sin redondear: one-shot `best_objective` **0.827404935352991** desde el
-lote 1 (8_820 simulaciones) hasta 69_300. Bucle `best_objective` **0.8712105287438211** desde
-la ronda 1 (8_820) hasta 69_300. Ninguno cruza el umbral 0.930344254218952.
+Unrounded JSON: one-shot `best_objective` **0.827404935352991** from batch 1 (8,820 simulations) through 69,300. Loop `best_objective` **0.8712105287438211** from round 1 (8,820) through 69,300. Neither crosses the threshold 0.930344254218952.
 
-| simulaciones | 180 | 8_820 | 17_460 | 69_300 |
+| Simulations | 180 | 8,820 | 17,460 | 69,300 |
 |---|---:|---:|---:|---:|
-| one-shot, mejor hasta ahí | 0.2489 | 0.8274 | 0.8274 | 0.8274 |
-| bucle, mejor hasta ahí | 0.2489 | 0.8712 | 0.8712 | 0.8712 |
+| One-shot, best so far | 0.2489 | 0.8274 | 0.8274 | 0.8274 |
+| Loop, best so far | 0.2489 | 0.8712 | 0.8712 | 0.8712 |
 
-Holdout del bucle en la tarjeta (`operator_card_4c3fe819-…json`), objetivo 0.8771740180657116,
-IC guardado por el job [0.8656651043782586, 0.8886829317531646], % a tiempo 0.899415303204306.
-La ganadora es SPT, `max_pm_per_shift=2`, `pm_wear_threshold` vacío, 5 reglas. El one-shot
-ganador es WEIGHTED con pesos (0.25, 0.5, 0.25), el mismo `max_pm_per_shift=2` y umbrales
-vacíos, 5 reglas. En `bench/results` no hay corrida 32B de esta sesión. `LLM_MODEL` sigue en
-`Qwen/Qwen3-8B`.
+Loop holdout on the card (`operator_card_4c3fe819-…json`): objective 0.8771740180657116, CI stored by the job [0.8656651043782586, 0.8886829317531646], on time 0.899415303204306. The winner is SPT, `max_pm_per_shift=2`, empty `pm_wear_threshold`, 5 rules. The one-shot winner is WEIGHTED with weights (0.25, 0.5, 0.25), the same `max_pm_per_shift=2`, empty thresholds, 5 rules. This session has no 32B policy-quality run in `bench/results`. `LLM_MODEL` stays `Qwen/Qwen3-8B`.
 
-## Corte de calibración (14 oct 2026)
+## Calibration cut (14 Oct 2026)
 
-`PlantConfig` adopta la forma AI4I: `failure_midpoint` 0.95, `failure_steepness` 18.
-`failure_base_per_min` no cambia. `calibrated_plant_config()` coincide con ese default.
-**Los objetivos de esta sección no se comparan con los de arriba.** Un 1.52 aquí y un 1.01
-en la tabla de GPU 2 no dicen cuál método gana: la planta es otra.
+`PlantConfig` adopts the AI4I shape: `failure_midpoint` 0.95, `failure_steepness` 18. `failure_base_per_min` does not change. `calibrated_plant_config()` matches that default. **Objectives in this section are not compared with the sections above.** A 1.52 here and a 1.01 in the GPU 2 table do not say which method wins. The plant is a different one.
 
-`make gpu2` con perfil `default`, seed 1, holdout 300, `SIM_WORKERS=16` y
-`LLM_MODEL=Qwen/Qwen3-8B` por el túnel `http://127.0.0.1:8000/v1`. El bucle es el job
-`2fa98c9c-40c4-4f50-8313-b1049d66a9b1`: `started_at` 2026-10-14 16:53:35−06, `finished_at`
-17:12:59−06 (1164 s). `llm_source=vllm`, commit `b0fd30e`. 384/384 propuestas válidas, 0
-inválidas. `simulations_total` del job es **70_500** porque suma las 1_200 de holdout y estrés
-(4 × 300); la curva de entrenamiento cierra en **69_300**. La regla fija y Optuna son las
-corridas locales del corte (Optuna: 16.1 min, 385 trials, 0 fallidos). El JSON de Optuna
-declara `failure_midpoint` 0.95 y `failure_steepness` 18. El one-shot también fue 384/384
-válidas.
+`make gpu2` with profile `default`, seed 1, holdout 300, `SIM_WORKERS=16`, and `LLM_MODEL=Qwen/Qwen3-8B` through the tunnel `http://127.0.0.1:8000/v1`. The loop is job `2fa98c9c-40c4-4f50-8313-b1049d66a9b1`: `started_at` 2026-10-14 16:53:35−06, `finished_at` 17:12:59−06 (1164 s). `llm_source=vllm`, commit `b0fd30e`. 384/384 valid proposals, 0 invalid. `simulations_total` is **70,500** because it adds the 1,200 of holdout and stress (4 × 300). The training curve closes at **69,300**. The fixed rule and Optuna are the local runs of the cut (Optuna: 16.1 min, 385 trials, 0 failed). The Optuna JSON declares `failure_midpoint` 0.95 and `failure_steepness` 18. The one-shot was also 384/384 valid.
 
-Tabla que imprimió `eval.efficiency` (`bench/results/efficiency_20261014.json`, umbral
-`0.7858 + 0.9*(1.5188 − 0.7858) = 1.4455`). El IC de holdout es el bootstrap de 2000
-remuestreos con `PCG64(0)`.
+Table printed by `eval.efficiency` (`bench/results/efficiency_20261014.json`, threshold `0.7858 + 0.9*(1.5188 − 0.7858) = 1.4455`). Holdout CI is the bootstrap of 2,000 resamples with `PCG64(0)`.
 
-| método | train | holdout | IC 95% | % a tiempo | sims | sims al 90% | notas |
+| Method | Train | Holdout | 95% CI | On time | Sims | Sims to 90% | Notes |
 |---|---:|---:|---|---:|---:|---|---|
-| regla fija | 0.7858 | 0.7725 | [0.7431, 0.8017] | 50.6% | 180 | no alcanza | definitivo |
-| Optuna TPE | 1.5188 | 1.5126 | [1.5048, 1.5198] | 99.9% | 69_300 | 5_760 | definitivo |
-| LLM sin retroalimentación | 1.2318 | 1.2259 | [1.2167, 1.2349] | 91.4% | 69_300 | no alcanza | vLLM real |
-| bucle con retroalimentación | 0.7858 | 0.7725 | [0.7431, 0.8017] | 50.6% | 70_500 | no alcanza | vLLM real |
+| Fixed rule | 0.7858 | 0.7725 | [0.7431, 0.8017] | 50.6% | 180 | does not reach | definitive |
+| Optuna TPE | 1.5188 | 1.5126 | [1.5048, 1.5198] | 99.9% | 69,300 | 5,760 | definitive |
+| LLM, no feedback | 1.2318 | 1.2259 | [1.2167, 1.2349] | 91.4% | 69,300 | does not reach | real vLLM |
+| Feedback loop | 0.7858 | 0.7725 | [0.7431, 0.8017] | 50.6% | 70,500 | does not reach | real vLLM |
 
-Precisión del JSON, sin redondear: regla fija y bucle **0.7858323573895744** desde la
-política 0 hasta 69_300. One-shot `best_objective` **1.2317665500868358** desde el lote 6
-(52_020 simulaciones). Optuna **1.5188378682250157**. Ningún método con LLM cruza el umbral
-1.4455373171414716.
+Unrounded JSON: fixed rule and loop **0.7858323573895744** from policy 0 through 69,300. One-shot `best_objective` **1.2317665500868358** from batch 6 (52,020 simulations). Optuna **1.5188378682250157**. No LLM method crosses the threshold 1.4455373171414716.
 
-| simulaciones | 180 | 8_820 | 34_740 | 52_020 | 69_300 |
+| Simulations | 180 | 8,820 | 34,740 | 52,020 | 69,300 |
 |---|---:|---:|---:|---:|---:|
-| one-shot, mejor hasta ahí | 0.7858 | 1.1514 | 1.1953 | 1.2318 | 1.2318 |
-| bucle, mejor hasta ahí | 0.7858 | 0.7858 | 0.7858 | 0.7858 | 0.7858 |
+| One-shot, best so far | 0.7858 | 1.1514 | 1.1953 | 1.2318 | 1.2318 |
+| Loop, best so far | 0.7858 | 0.7858 | 0.7858 | 0.7858 | 0.7858 |
 
-Holdout del bucle en la tarjeta (`operator_card_2fa98c9c-…json`), objetivo 0.7725039817047121,
-IC guardado por el job [0.7429516383465712, 0.8020563250628531], % a tiempo 0.5057068010861212.
-Esos tres números, y el resto de KPIs de train, holdout y estrés, coinciden con la regla fija
-(`delta_on_time` 0). La política guardada como mejor es EDD, `max_pm_per_shift=1`,
-`pm_wear_threshold` vacío, 0 reglas. El one-shot ganador es WEIGHTED con pesos (0.4, 0.35,
-0.25), `max_pm_per_shift=2`, umbrales 0.65/0.70/0.75/0.80/0.85 y 5 reglas. `LLM_MODEL` sigue
-en `Qwen/Qwen3-8B`.
+Loop holdout on the card (`operator_card_2fa98c9c-…json`): objective 0.7725039817047121, CI stored by the job [0.7429516383465712, 0.8020563250628531], on time 0.5057068010861212. Those three numbers, and the rest of the train, holdout, and stress KPIs, match the fixed rule (`delta_on_time` 0). The policy stored as best is EDD, `max_pm_per_shift=1`, empty `pm_wear_threshold`, 0 rules. The one-shot winner is WEIGHTED with weights (0.4, 0.35, 0.25), `max_pm_per_shift=2`, thresholds 0.65/0.70/0.75/0.80/0.85, and 5 rules. `LLM_MODEL` stays `Qwen/Qwen3-8B`.
 
-**Esta fila del bucle no es la oficial.** El job se quedó en la regla fija (bug de clones del
-top-k, corregido en `476e8cf`). La corrida oficial del bucle con planta calibrada es la
-sesión GPU 5 (telemetría), más abajo; GPU 4 queda como corrida previa.
+**This loop row is not official.** The job stayed on the fixed rule (a top-k clone bug, fixed in `476e8cf`). The next two sections are the calibrated-plant loop runs. The official one is the 16 October section at the top of this file.
 
-## Miércoles 14, sesión GPU 4 (planta calibrada; supersedida)
+## Wednesday 14, GPU session 4 (calibrated plant; superseded)
 
-**Corrida del bucle con planta calibrada** (`failure_midpoint` 0.95,
-`failure_steepness` 18). Fue la oficial hasta la sesión con telemetría
-(`c0c92625…`, más abajo). Los objetivos se comparan con la sección «Corte de calibración»
-(misma planta); no con GPU 2 ni con las tablas de midpoint 0.72.
+Calibrated-plant loop (`failure_midpoint` 0.95, `failure_steepness` 18). This was the official run until the telemetry session (`c0c92625…`, at the top of this file). Compare these objectives with the calibration-cut section (same plant), not with GPU 2 or with the midpoint-0.72 tables.
 
-Perfil `default`, seed 1, holdout 300, `SIM_WORKERS=16`, `LLM_MODEL=Qwen/Qwen3-8B` por el
-túnel `http://127.0.0.1:8000/v1`. El bucle es el job
-`285d1787-5d7c-464a-9897-4c585663f088`: `started_at` 2026-10-14 18:28:47−06, `finished_at`
-18:44:07−06 (**919.5 s**). `llm_source=vllm`, commit `476e8cf`. De 300 propuestas con
-resultado de validación, **262 válidas y 38 inválidas** (la ronda 2 sola aportó 34; ver
-pendiente abajo). `simulations_total` del job es **48_540** (47_340 de entrenamiento =
-263 políticas × 180, más 1_200 de holdout y estrés). La curva de entrenamiento cierra en
-**47_340**, no en 69_300: hubo menos políticas válidas que el techo N×R. La regla fija y
-Optuna son las del corte (mismas semillas, misma planta). El one-shot de la tabla es el de
-vLLM en planta calibrada (384/384 válidas, `best_objective` 1.2318).
+Profile `default`, seed 1, holdout 300, `SIM_WORKERS=16`, `LLM_MODEL=Qwen/Qwen3-8B` through the tunnel `http://127.0.0.1:8000/v1`. The loop is job `285d1787-5d7c-464a-9897-4c585663f088`: `started_at` 2026-10-14 18:28:47−06, `finished_at` 18:44:07−06 (**919.5 s**). `llm_source=vllm`, commit `476e8cf`. Of 300 proposals with a validation result, **262 valid and 38 invalid** (round 2 alone contributed 34; see the note below). `simulations_total` is **48,540** (47,340 of training = 263 policies × 180, plus 1,200 of holdout and stress). The training curve closes at **47,340**, not 69,300: fewer policies were valid than the N×R ceiling. The fixed rule and Optuna are the cut’s runs. The one-shot in the table is the calibrated-plant vLLM run (384/384 valid, `best_objective` 1.2318).
 
-Tabla que imprimió `eval.efficiency` (`bench/results/efficiency_20261015.json`, umbral
-`0.7858 + 0.9*(1.5188 − 0.7858) = 1.4455`). El IC de holdout es el bootstrap de 2000
-remuestreos con `PCG64(0)`.
+Table printed by `eval.efficiency` (`bench/results/efficiency_20261015.json`, threshold `0.7858 + 0.9*(1.5188 − 0.7858) = 1.4455`). Holdout CI is the bootstrap of 2,000 resamples with `PCG64(0)`.
 
-| método | train | holdout | IC 95% | % a tiempo | sims | sims al 90% | notas |
+| Method | Train | Holdout | 95% CI | On time | Sims | Sims to 90% | Notes |
 |---|---:|---:|---|---:|---:|---|---|
-| regla fija | 0.7858 | 0.7725 | [0.7431, 0.8017] | 50.6% | 180 | no alcanza | definitivo |
-| Optuna TPE | 1.5188 | 1.5126 | [1.5048, 1.5198] | 99.9% | 69_300 | 5_760 | definitivo |
-| LLM sin retroalimentación | 1.2318 | 1.2259 | [1.2167, 1.2349] | 91.4% | 69_300 | no alcanza | vLLM real |
-| bucle con retroalimentación | 1.3810 | 1.3863 | [1.3705, 1.4014] | 98.8% | 48_540 | no alcanza | vLLM real (supersedida) |
+| Fixed rule | 0.7858 | 0.7725 | [0.7431, 0.8017] | 50.6% | 180 | does not reach | definitive |
+| Optuna TPE | 1.5188 | 1.5126 | [1.5048, 1.5198] | 99.9% | 69,300 | 5,760 | definitive |
+| LLM, no feedback | 1.2318 | 1.2259 | [1.2167, 1.2349] | 91.4% | 69,300 | does not reach | real vLLM |
+| Feedback loop | 1.3810 | 1.3863 | [1.3705, 1.4014] | 98.8% | 48,540 | does not reach | real vLLM (superseded) |
 
-Precisión del JSON, sin redondear: bucle `best_objective` **1.3809907221951065** al cierre
-(47_340 sims de train). One-shot **1.2317665500868358**. Optuna **1.5188378682250157**.
-Ningún método con LLM cruza el umbral 1.4455373171414716. El bucle le saca 0.15 al
-one-shot en train y 0.16 en holdout; Optuna sigue arriba en objetivo (1.52 vs 1.38) y llega
-al umbral en 5_760 sims.
+Unrounded JSON: loop `best_objective` **1.3809907221951065** at close (47,340 training sims). One-shot **1.2317665500868358**. Optuna **1.5188378682250157**. No LLM method crosses the threshold 1.4455373171414716. The loop leads the one-shot by 0.15 in training and 0.16 in holdout. Optuna stays ahead on the objective (1.52 against 1.38) and reaches the threshold in 5,760 sims.
 
-| simulaciones | 180 | 8_280 | 25_200 | 31_860 | 37_440 | 41_940 | 47_340 |
+| Simulations | 180 | 8,280 | 25,200 | 31,860 | 37,440 | 41,940 | 47,340 |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| bucle, mejor hasta ahí | 0.7858 | 1.3565 | 1.3631 | 1.3686 | 1.3766 | 1.3768 | 1.3810 |
+| Loop, best so far | 0.7858 | 1.3565 | 1.3631 | 1.3686 | 1.3766 | 1.3768 | 1.3810 |
 
-| simulaciones | 180 | 8_820 | 26_100 | 34_740 | 52_020 | 69_300 |
+| Simulations | 180 | 8,820 | 26,100 | 34,740 | 52,020 | 69,300 |
 |---|---:|---:|---:|---:|---:|---:|
-| one-shot, mejor hasta ahí | 0.7858 | 1.0992 | 1.1514 | 1.1953 | 1.2318 | 1.2318 |
+| One-shot, best so far | 0.7858 | 1.0992 | 1.1514 | 1.1953 | 1.2318 | 1.2318 |
 
-Holdout del bucle en la tarjeta (`operator_card_285d1787-…json`), objetivo
-1.3862772356985602, IC guardado por el job [1.3709379596738258, 1.4016165117232946], % a
-tiempo **0.9884149935550874**. Regla fija en el mismo holdout: 0.5057068010861212 a tiempo.
-El titular de esa tarjeta era **50.6% → 98.8%**. En estrés (+30% fallas, demanda ×1.5) fija
-0.1305 y mejor 0.4528 a tiempo; el hueco lo lleva el throughput (965.3 vs 747.9), no el % a
-tiempo.
+Loop holdout on the card (`operator_card_285d1787-…json`): objective 1.3862772356985602, CI stored by the job [1.3709379596738258, 1.4016165117232946], on time **0.9884149935550874**. Fixed rule on the same holdout: 0.5057068010861212 on time. That card’s headline was **50.6% → 98.8%**. Under stress (+30% failures, demand ×1.5) the fixed rule is at 0.1305 on time and the best at 0.4528. The gap there is throughput (965.3 against 747.9).
 
-La ganadora es `CRITICAL_RATIO` con pesos (setup 0.3, due_date 0.3, wear_risk 0.4),
-`max_pm_per_shift=1`, `pm_wear_threshold` vacío, 5 reglas (`PRIORITIZE_PRODUCT` por máquina
-con `wear_gt` 0.95/0.94/0.93/0.96/0.92). El one-shot ganador sigue siendo el WEIGHTED del
-corte. `LLM_MODEL` sigue en `Qwen/Qwen3-8B`.
+The winner is `CRITICAL_RATIO` with weights (setup 0.3, due date 0.3, wear risk 0.4), `max_pm_per_shift=1`, empty `pm_wear_threshold`, and 5 rules (`PRIORITIZE_PRODUCT` per machine with `wear_gt` 0.95/0.94/0.93/0.96/0.92). The one-shot winner is still the cut’s WEIGHTED policy. `LLM_MODEL` stays `Qwen/Qwen3-8B`.
 
-### Nota: ronda 2 de 285d1787 (34 inválidas)
+### Note: round 2 of 285d1787 (34 invalid)
 
-En la **ronda 2** de ese job (15 válidas, **34 inválidas**) casi todas fallaban el mismo
-chequeo de Pydantic: `rules.*.if` con `machine: null` y `product_waiting: null`. La corrida
-oficial nueva (`c0c92625…`) no repite ese problema (201 propuestas LLM válidas).
+In **round 2** of that job (15 valid, **34 invalid**) almost every failure was the same Pydantic check: `rules.*.if` with `machine: null` and `product_waiting: null`. The official run (`c0c92625…`) does not repeat that problem (201 valid LLM proposals).
 
-## Viernes 16, sesión GPU 5 (oficial, con telemetría)
-
-**Corrida oficial actual** del bucle con planta calibrada y telemetría en vivo
-(`data/replay/live_c0c92625-….json`, `fake=false`). Misma planta que GPU 4
-(`failure_midpoint` 0.95, `failure_steepness` 18).
-
-Perfil `default`, seed 1, holdout 300, `LLM_MODEL=Qwen/Qwen3-8B` por el túnel a vLLM en
-MI300X. El bucle es el job `c0c92625-de22-4520-accb-6a17c1a76428`: `started_at`
-2026-10-16 18:17:05−06, `finished_at` 18:29:28−06 (**742.9 s**). `llm_source=vllm`, commit
-`0bfdeef`. **201 propuestas LLM válidas** (ninguna inválida en el freeze). 
-`simulations_total` del job es **37_560** (36_360 de entrenamiento = 202 políticas × 180,
-más 1_200 de holdout y estrés). La curva de entrenamiento cierra en **36_360**. La regla
-fija y Optuna son las del corte; el one-shot es
-`llm_nofeedback_default_seed1_20261017.json` (mismo `best_objective` 1.2318).
-
-Tabla que imprimió `eval.efficiency` (`bench/results/efficiency_20261017.json`, umbral
-`0.7858 + 0.9*(1.5188 − 0.7858) = 1.4455`). El IC de holdout es el bootstrap de 2000
-remuestreos con `PCG64(0)`.
-
-| método | train | holdout | IC 95% | % a tiempo | sims | sims al 90% | notas |
-|---|---:|---:|---|---:|---:|---|---|
-| regla fija | 0.7858 | 0.7725 | [0.7431, 0.8017] | 50.6% | 180 | no alcanza | definitivo |
-| Optuna TPE | 1.5188 | 1.5126 | [1.5048, 1.5198] | 99.9% | 69_300 | 5_760 | definitivo |
-| LLM sin retroalimentación | 1.2318 | 1.2259 | [1.2167, 1.2349] | 91.4% | 69_300 | no alcanza | vLLM real |
-| bucle con retroalimentación | 1.3755 | 1.3691 | [1.3530, 1.3842] | 98.9% | 37_560 | no alcanza | **oficial**, vLLM real |
-
-Precisión del JSON, sin redondear: bucle `best_objective` (train) **1.375498030247249** al
-cierre (36_360 sims de train). Holdout **1.369148246207772**. One-shot
-**1.2317665500868358**. Optuna **1.5188378682250157**. Ningún método con LLM cruza el
-umbral 1.4455373171414716. Optuna sigue arriba en objetivo; el bucle llega a **98.9%** a
-tiempo en holdout.
-
-| simulaciones | 180 | 8_460 | 13_680 | 20_880 | 25_560 | 36_360 |
-|---|---:|---:|---:|---:|---:|---:|
-| bucle, mejor hasta ahí | 0.7858 | 1.3670 | 1.3751 | 1.3755 | 1.3755 | 1.3755 |
-
-Holdout del bucle en la tarjeta (`operator_card_c0c92625-…json`), objetivo
-1.3691482462077722, IC del job [1.3537462894545935, 1.3845502029609509], % a tiempo
-**0.9891607470550925**. Regla fija en el mismo holdout: 0.5057068010861212 a tiempo. El
-titular de la tarjeta es **50.6% → 98.9%** a tiempo en semillas que la búsqueda no vio. En
-estrés (+30% fallas, demanda ×1.5) fija 0.1305 y mejor 0.2643 a tiempo; el hueco lo lleva el
-throughput (949.9 vs 747.9), no el % a tiempo.
-
-La ganadora es `CRITICAL_RATIO` con pesos (setup 0.2, due_date 0.5, wear_risk 0.3),
-`max_pm_per_shift=1`, `pm_wear_threshold` vacío, 5 reglas (`PRIORITIZE_PRODUCT` por máquina
-con `wear_gt` 0.85/0.80/0.75/0.75/0.70). `LLM_MODEL` sigue en `Qwen/Qwen3-8B`.
+Historical artifacts for this superseded run stay in the repo as `operator_card_285d1787-…json` and `replay_285d1787-…json`. They are not what the demo serves.

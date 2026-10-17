@@ -1,5 +1,7 @@
 # Replay: qué guarda una corrida y quién lo lee
 
+> Working note, in Spanish. The demo serves job `c0c92625-de22-4520-accb-6a17c1a76428`. See the repository README.
+
 El jueves la UI solo lee datos: nada de llamar al LLM ni de simular para mostrar una corrida.
 Este documento lista qué queda guardado, dónde, quién lo lee y qué huecos había.
 

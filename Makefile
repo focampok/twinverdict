@@ -52,7 +52,7 @@ efficiency:
 	uv run python -m eval.efficiency --results-dir bench/results --profile default --seed 1
 
 # Sesión GPU 2: vLLM por túnel SSH en localhost:8000, simulaciones en la laptop.
-# Requisitos y pasos completos en docs/SESION_GPU2.md. La GPU solo sirve vLLM.
+# Requisitos y pasos completos en docs/dev-log/SESION_GPU2.md. La GPU solo sirve vLLM.
 GPU2_PROFILE ?= default
 GPU2_SEED ?= 1
 GPU2_HOLDOUT ?= 300
