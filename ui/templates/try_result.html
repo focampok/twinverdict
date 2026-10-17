@@ -1,4 +1,14 @@
-<div id="try-result">
+<div id="try-result" aria-live="polite">
+  {% set by_key = {} %}
+  {% for row in rows %}{% set _ = by_key.update({row.key: row}) %}{% endfor %}
+  {% if by_key.user and by_key.llm %}
+    {% set gap = (by_key.user.on_time_rate - by_key.llm.on_time_rate) * 100 %}
+    {% set rounded = gap | round(1) %}
+    <p class="try-summary {{ 'good' if rounded >= 0 else 'down' }}">
+      Your policy: {{ "%.1f" | format(by_key.user.on_time_rate * 100) }}% on-time,
+      {% if rounded == 0 %}level with the LLM policy.{% else %}{{ "%.1f" | format(rounded | abs) }} points {{ "above" if rounded > 0 else "below" }} the LLM policy.{% endif %}
+    </p>
+  {% endif %}
   <p class="secondary">
     {{ seeds | length }} holdout seeds; official card uses {{ official_seeds }}.
     Every number below comes from the simulator.
@@ -17,7 +27,7 @@
       <tbody>
         {% for row in rows %}
           <tr{% if row.key == "user" %} class="mine"{% endif %}>
-            <td>{{ row.label }}</td>
+            <td>{{ row.label }}{% if row.key == "user" %} <span class="mark">yours</span>{% endif %}</td>
             <td>{{ "%.1f" | format(row.on_time_rate * 100) }}%</td>
             <td>{{ "%.1f" | format(row.unplanned_min) }}</td>
             <td>{{ "%.4f" | format(row.objective) }}</td>

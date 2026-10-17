@@ -3,63 +3,202 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>TwinVerdict</title>
+    <title>{% block title %}TwinVerdict · verified maintenance policies for the plant floor{% endblock %}</title>
+    <meta name="description" content="TwinVerdict: an LLM proposes maintenance and dispatch policies, a digital twin of the line scores them across hundreds of scenarios, and the operator approves or rejects." />
+    <meta property="og:title" content="TwinVerdict" />
+    <meta property="og:description" content="AI proposes. The simulator verifies. The operator decides." />
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content="{{ request.base_url }}visual/img/operator-card.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="icon" type="image/svg+xml" href="/visual/favicon.svg" />
     <script src="https://unpkg.com/htmx.org@2.0.4"></script>
     <style>
-      body {
-        font-family: system-ui, sans-serif;
-        line-height: 1.45;
-        background: #fff;
-        color: #1a1a1a;
-        max-width: 56rem;
-        margin: 2rem auto;
-        padding: 0 1rem;
+      :root {
+        --tv-bg: #f6f7f9;
+        --tv-surface: #ffffff;
+        --tv-ink: #111827;
+        --tv-muted: #4b5563;
+        --tv-line: #d9dde3;
+        --tv-accent: #1d4ed8;
+        --tv-accent-soft: #e8eefc;
+        --tv-good: #15803d;
+        --tv-good-soft: #e7f5ec;
+        --tv-down: #b91c1c;
+        --tv-down-soft: #fbeaea;
+        --tv-radius: 10px;
+        --tv-space: 8px;
       }
+      * { box-sizing: border-box; }
+      html { scroll-behavior: smooth; scroll-padding-top: 6rem; }
+      body {
+        margin: 0;
+        font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+        font-size: 1rem;
+        line-height: 1.55;
+        background: var(--tv-bg);
+        color: var(--tv-ink);
+      }
+      a { color: var(--tv-accent); text-underline-offset: 0.18em; }
+      :focus-visible { outline: 3px solid var(--tv-accent); outline-offset: 2px; border-radius: 4px; }
+      .skip {
+        position: absolute; left: 0.75rem; top: -3rem; z-index: 50;
+        padding: 0.5rem 0.9rem; background: var(--tv-ink); color: #fff; border-radius: 6px;
+      }
+      .skip:focus { top: 0.75rem; }
+
+      .site-head {
+        background: var(--tv-surface);
+        border-bottom: 1px solid var(--tv-line);
+        z-index: 20;
+      }
+      .site-head .wrap {
+        display: flex; flex-wrap: wrap; align-items: center;
+        gap: calc(var(--tv-space) * 1) calc(var(--tv-space) * 3);
+        padding-block: calc(var(--tv-space) * 1.5);
+      }
+      .brand { display: flex; align-items: center; gap: 0.6rem; color: var(--tv-ink); text-decoration: none; }
+      .brand strong { font-size: 1.15rem; letter-spacing: 0.01em; }
+      .brand img { display: block; }
+      .tagline { margin: 0; color: var(--tv-muted); font-size: 0.95rem; flex: 1 1 18rem; }
+      .site-nav { display: flex; gap: 0.25rem; margin-left: auto; }
+      .site-nav a {
+        display: inline-flex; align-items: center; min-height: 44px; padding: 0 0.75rem;
+        border-radius: 8px; color: var(--tv-ink); font-weight: 600; text-decoration: none;
+      }
+      .site-nav a:hover { background: var(--tv-accent-soft); }
+      .site-nav a[aria-current="page"] { color: var(--tv-accent); box-shadow: inset 0 -3px 0 var(--tv-accent); }
+      .head-badge { flex-basis: 100%; margin: 0; }
+      @media (min-width: 720px) {
+        .site-head { position: sticky; top: 0; }
+      }
+
+      .wrap { width: min(72rem, 100%); margin: 0 auto; padding-inline: calc(var(--tv-space) * 2.5); }
+      main.wrap { padding-block: calc(var(--tv-space) * 4) calc(var(--tv-space) * 8); }
+
       .badge {
         display: inline-block;
-        margin: 0 0 1rem;
-        padding: 0.35rem 0.7rem;
-        border: 2px solid #1a1a1a;
-        font-size: 1rem;
-        font-weight: 700;
-        letter-spacing: 0.01em;
-        line-height: 1.35;
+        padding: 0.2rem 0.6rem;
+        border: 1px solid var(--tv-line);
+        border-radius: 999px;
+        background: var(--tv-bg);
+        color: var(--tv-muted);
+        font-size: 0.85rem;
+        font-weight: 600;
+        line-height: 1.5;
       }
-      .provenance { margin-top: 0; }
-      h1 { font-size: 1.6rem; line-height: 1.3; }
-      .secondary { color: #444; font-size: 0.95rem; }
-      .error { color: #8a1f1f; }
-      button { font: inherit; padding: 0.4rem 0.8rem; margin-right: 0.5rem; }
-      input { font: inherit; padding: 0.35rem 0.5rem; margin: 0 0.5rem 0.75rem 0; }
-      h2 { font-size: 1.25rem; margin-top: 2.5rem; }
-      .table-wrap { overflow-x: auto; }
-      table { border-collapse: collapse; width: 100%; font-size: 0.9rem; }
-      th, td { border-bottom: 1px solid #ccc; text-align: left; padding: 0.35rem 0.45rem; white-space: nowrap; }
+      .badge.fake { border-style: dashed; color: var(--tv-down); border-color: var(--tv-down); background: var(--tv-down-soft); }
+
+      h1 { font-size: clamp(2rem, 5vw, 3rem); line-height: 1.15; margin: 0 0 0.5rem; letter-spacing: -0.01em; }
+      h2 { font-size: 1.5rem; line-height: 1.3; margin: 0 0 0.75rem; }
+      h3 { font-size: 1.1rem; line-height: 1.35; margin: 1rem 0 0.4rem; }
+      p { max-width: 68ch; }
+      .secondary { color: var(--tv-muted); font-size: 0.95rem; }
+      .error { color: var(--tv-down); font-weight: 600; }
+      .eyebrow { margin: 0 0 0.35rem; color: var(--tv-accent); font-size: 0.85rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
+
+      section.panel, .card {
+        background: var(--tv-surface);
+        border: 1px solid var(--tv-line);
+        border-radius: var(--tv-radius);
+        padding: calc(var(--tv-space) * 3);
+        margin-top: calc(var(--tv-space) * 4);
+      }
+
+      button, .btn {
+        display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem;
+        min-height: 44px; padding: 0.55rem 1rem;
+        font: inherit; font-weight: 600; line-height: 1.2;
+        border: 1px solid var(--tv-line); border-radius: 8px;
+        background: var(--tv-surface); color: var(--tv-ink);
+        cursor: pointer; text-decoration: none;
+        transition: background-color 150ms ease, border-color 150ms ease, transform 150ms ease;
+      }
+      button:hover, .btn:hover { border-color: var(--tv-muted); }
+      button:active, .btn:active { transform: scale(0.98); }
+      button:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+      .btn-primary { background: var(--tv-accent); border-color: var(--tv-accent); color: #fff; }
+      .btn-primary:hover { background: #1e40af; border-color: #1e40af; }
+      .btn-good { background: var(--tv-good); border-color: var(--tv-good); color: #fff; }
+      .btn-good:hover { background: #166534; border-color: #166534; }
+      .btn-down { color: var(--tv-down); border-color: #e3b4b4; }
+      .btn-down:hover { background: var(--tv-down-soft); border-color: var(--tv-down); }
+      button[aria-pressed="true"] { background: var(--tv-accent-soft); border-color: var(--tv-accent); color: var(--tv-accent); }
+
+      input[type="text"], select {
+        font: inherit; min-height: 44px; padding: 0.45rem 0.65rem;
+        border: 1px solid #9aa3af; border-radius: 8px; background: var(--tv-surface); color: var(--tv-ink);
+      }
+      input[type="range"] { accent-color: var(--tv-accent); }
+
+      .table-wrap { overflow-x: auto; margin-top: 1rem; }
+      table { border-collapse: collapse; width: 100%; font-size: 0.95rem; font-variant-numeric: tabular-nums; }
+      th, td { border-bottom: 1px solid var(--tv-line); text-align: left; padding: 0.6rem 0.7rem; white-space: nowrap; }
+      thead th { color: var(--tv-muted); font-size: 0.8rem; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; }
+      tr.mine td { font-weight: 700; background: var(--tv-accent-soft); }
+      tr.mine td:first-child { box-shadow: inset 4px 0 0 var(--tv-accent); }
+      .mark { display: inline-block; margin-left: 0.35rem; padding: 0 0.45rem; border-radius: 999px; background: var(--tv-accent); color: #fff; font-size: 0.75rem; font-weight: 700; vertical-align: 1px; }
       canvas { width: 100%; max-height: 320px; }
-      .honesty { color: #333; }
-      fieldset { border: 1px solid #ccc; margin: 0 0 1rem; padding: 0.5rem 0.9rem 0.25rem; }
-      legend { font-weight: 650; padding: 0 0.3rem; }
-      select { font: inherit; padding: 0.3rem 0.4rem; margin: 0 0 0.75rem 0.4rem; }
-      .slider { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.4rem; }
-      .slider input { flex: 0 1 14rem; margin: 0; }
-      .slider output { font-variant-numeric: tabular-nums; min-width: 2.5rem; }
-      tr.mine td { font-weight: 650; }
-      .gantt-box { background: var(--bg); color: var(--text); padding: 0.75rem 1rem 1rem; margin-top: 1.25rem; }
+      .honesty { color: var(--tv-muted); }
+
+      .gantt-box { background: #0f1115; color: #e8ebf0; padding: 1rem 1.25rem 1.25rem; margin-top: 1.25rem; border-radius: var(--tv-radius); }
       .gantt-box h3 { font-size: 1rem; margin: 0.7rem 0 0.3rem; }
-      .badge.fake { border-style: dashed; color: #8a1f1f; border-color: #8a1f1f; }
-      .counters { display: flex; flex-wrap: wrap; gap: 1.25rem 2rem; margin: 1rem 0; }
-      .counters strong { display: block; font-size: 2rem; line-height: 1.1; font-variant-numeric: tabular-nums; }
-      .counters span, .gpu-now { color: #444; font-size: 0.9rem; }
-      .gpu-now { display: flex; flex-wrap: wrap; gap: 1.5rem; }
-      .gpu-now strong { color: #1a1a1a; font-variant-numeric: tabular-nums; }
-      button[aria-pressed="true"] { font-weight: 700; outline: 2px solid #1a1a1a; }
-      .minis { display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); gap: 1rem; }
-      .minis figure { margin: 0; }
-      .minis figcaption { font-size: 0.9rem; color: #444; }
-      .minis canvas { max-height: 160px; }
+      .gantt-box p { color: #c9ced8; }
+
+      .site-foot { border-top: 1px solid var(--tv-line); background: var(--tv-surface); color: var(--tv-muted); }
+      .site-foot .wrap { display: flex; flex-wrap: wrap; gap: 0.5rem 1.5rem; padding-block: 1.5rem; }
+      .site-foot p { margin: 0; }
+
+      .toast {
+        position: fixed; left: 50%; bottom: 1.25rem; z-index: 60;
+        transform: translate(-50%, 1rem); opacity: 0; pointer-events: none;
+        padding: 0.75rem 1.1rem; border-radius: 10px;
+        background: var(--tv-ink); color: #fff; font-weight: 600;
+        box-shadow: 0 8px 24px rgba(17, 24, 39, 0.25);
+        transition: opacity 200ms ease-out, transform 200ms ease-out;
+      }
+      .toast.show { opacity: 1; transform: translate(-50%, 0); }
+      .toast.bad { background: var(--tv-down); }
+
+      @media (max-width: 640px) {
+        .wrap { padding-inline: calc(var(--tv-space) * 2); }
+        section.panel, .card { padding: calc(var(--tv-space) * 2); }
+        .site-nav { margin-left: 0; width: 100%; justify-content: space-between; }
+        .site-nav a { padding: 0 0.5rem; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        html { scroll-behavior: auto; }
+        *, *::before, *::after { transition: none !important; animation: none !important; }
+      }
     </style>
+    {% block head %}{% endblock %}
   </head>
   <body>
-    {% block body %}{% endblock %}
+    <a class="skip" href="#main">Skip to content</a>
+    <header class="site-head">
+      <div class="wrap">
+        <a class="brand" href="/">
+          <img src="/visual/favicon.svg" width="28" height="28" alt="" />
+          <strong>TwinVerdict</strong>
+        </a>
+        <p class="tagline">AI proposes. The simulator verifies. The operator decides.</p>
+        <nav class="site-nav" aria-label="Main">
+          <a href="/#card"{% if active == "card" %} aria-current="page"{% endif %}>Operator card</a>
+          <a href="/live"{% if active == "live" %} aria-current="page"{% endif %}>Live run</a>
+          <a href="/#try-policy">Try a policy</a>
+        </nav>
+        {% block badge %}{% endblock %}
+      </div>
+    </header>
+    <main id="main" class="wrap">
+      {% block body %}{% endblock %}
+    </main>
+    <footer class="site-foot">
+      <div class="wrap">
+        <p>Built on AMD Instinct MI300X · ROCm · vLLM</p>
+        <p><a href="https://github.com/focampok/twinverdict">Source on GitHub</a></p>
+        <p>AMD Developer Hackathon ACT III</p>
+      </div>
+    </footer>
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
   </body>
 </html>

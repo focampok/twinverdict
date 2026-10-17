@@ -79,6 +79,8 @@ def operator_context(
         "headline": "",
         "body": "",
         "objective_ci": "",
+        "hero": None,
+        "kpis": [],
         "policy_id": None,
         "decision_label": _label(decision),
         "decision_reason": None if decision is None else decision.get("reason"),
@@ -97,7 +99,18 @@ def operator_context(
     try:
         rendered = card_text(card, mode="replay" if mode == "replay" else "live")
         objective_ci = _objective_ci(numbers)
-        visible = f"{rendered['headline']} {rendered['body']} {objective_ci}"
+        hero = _hero(numbers)
+        kpis = _kpis(numbers)
+        visible = " ".join(
+            [
+                rendered["headline"],
+                rendered["body"],
+                objective_ci,
+                hero["title"],
+                hero["context"],
+                *(f"{kpi['value']} {kpi['label']} {kpi['note']}" for kpi in kpis),
+            ]
+        )
         findings = verify(visible, numbers)
     except UnverifiedNumbers as exc:
         findings = exc.findings
@@ -110,9 +123,57 @@ def operator_context(
         headline=rendered["headline"],
         body=rendered["body"],
         objective_ci=objective_ci,
+        hero=hero,
+        kpis=kpis,
         policy_id=str(policy_id) if policy_id else None,
     )
     return page
+
+
+def _hero(numbers: dict[str, float]) -> dict[str, str]:
+    fixed = _measured_percent(numbers["on_time_rate_fixed_holdout"])
+    best = _measured_percent(numbers["on_time_rate_best_holdout"])
+    seeds = _measured(numbers["n_seeds_holdout"])
+    return {
+        "fixed": fixed,
+        "best": best,
+        "title": f"On-time orders: {fixed} → {best}",
+        "context": f"{seeds} holdout scenarios, verified by simulation",
+    }
+
+
+def _kpis(numbers: dict[str, float]) -> list[dict[str, str]]:
+    """Tarjetas de la tarjeta de operador. `tone` solo decide el color."""
+    return [
+        {
+            "value": _measured_percent(numbers["on_time_rate_best_holdout"]),
+            "label": "On-time orders, recommended policy",
+            "note": f"fixed rule {_measured_percent(numbers['on_time_rate_fixed_holdout'])}",
+            "tone": "good",
+        },
+        {
+            "value": _measured_percent(numbers["on_time_rate_fixed_holdout"]),
+            "label": "On-time orders, fixed rule today",
+            "note": "same scenarios",
+            "tone": "down",
+        },
+        {
+            "value": f"{numbers['throughput_best_holdout']:.1f}",
+            "label": "Orders completed per week",
+            "note": f"fixed rule {numbers['throughput_fixed_holdout']:.1f}",
+            "tone": "good",
+        },
+        {
+            "value": _measured(numbers["n_seeds_holdout"]),
+            "label": "Holdout scenarios",
+            "note": "not used to train the search",
+            "tone": "neutral",
+        },
+    ]
+
+
+def _measured_percent(value: float) -> str:
+    return f"{value * 100:.1f}%"
 
 
 @lru_cache(maxsize=8)

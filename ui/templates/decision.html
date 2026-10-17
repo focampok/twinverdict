@@ -1,25 +1,37 @@
-<div id="decision">
-  <p>{{ decision_label }}</p>
-  {% if decision_reason %}
-    <p>Reason: {{ decision_reason }}</p>
-  {% endif %}
+<div id="decision" class="decision" data-status="{{ decision_label | lower }}">
+  <h3>Your decision</h3>
+  <p class="status">
+    <span class="pill pill-{{ decision_label | lower }}">{{ decision_label }}</span>
+    {% if decision_reason %}
+      <span class="reason">Reason: {{ decision_reason }}</span>
+    {% endif %}
+  </p>
   {% if policy_id %}
-    <form>
-      <input name="reason" type="text" placeholder="Reason, optional" />
-      <button
-        type="button"
-        hx-post="/policies/{{ policy_id }}/approve"
-        hx-target="#decision"
-        hx-swap="outerHTML"
-        hx-include="closest form"
-      >Approve</button>
-      <button
-        type="button"
-        hx-post="/policies/{{ policy_id }}/reject"
-        hx-target="#decision"
-        hx-swap="outerHTML"
-        hx-include="closest form"
-      >Reject</button>
+    <form class="decide">
+      <label class="reason-field">
+        <span>Reason (optional)</span>
+        <input name="reason" type="text" placeholder="e.g. ready for the next shift" />
+      </label>
+      <div class="decide-buttons">
+        <button
+          type="button"
+          class="btn-good"
+          hx-post="/policies/{{ policy_id }}/approve"
+          hx-target="#decision"
+          hx-swap="outerHTML"
+          hx-include="closest form"
+          hx-disabled-elt="this"
+        >Approve</button>
+        <button
+          type="button"
+          class="btn-down"
+          hx-post="/policies/{{ policy_id }}/reject"
+          hx-target="#decision"
+          hx-swap="outerHTML"
+          hx-include="closest form"
+          hx-disabled-elt="this"
+        >Reject</button>
+      </div>
     </form>
   {% endif %}
 </div>

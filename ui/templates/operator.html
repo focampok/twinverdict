@@ -1,22 +1,115 @@
 {% extends "base.html" %}
-{% block body %}
-  <p class="provenance">Real vLLM (Qwen3-8B), calibrated plant</p>
+{% set active = "card" %}
+{% block head %}
+  <style>
+    .hero { padding-block: calc(var(--tv-space) * 2) calc(var(--tv-space) * 1); }
+    .hero h1 { font-variant-numeric: tabular-nums; }
+    .hero h1 .to { color: var(--tv-good); }
+    .hero-context { margin: 0; color: var(--tv-muted); font-size: 1.15rem; }
+    .actions { display: flex; flex-wrap: wrap; gap: calc(var(--tv-space) * 1.5); margin-top: calc(var(--tv-space) * 3); }
+    .card-provenance { margin: 0 0 0.25rem; color: var(--tv-muted); font-size: 0.9rem; }
+    .card h2.recommendation { font-size: clamp(1.35rem, 3vw, 1.75rem); margin-bottom: 1rem; }
+    .why { margin: 0 0 1.25rem; }
+    .why h3, .numbers h3 { margin: 0 0 0.35rem; font-size: 0.85rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--tv-muted); }
+    .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr)); gap: calc(var(--tv-space) * 1.5); margin: 0 0 0.75rem; padding: 0; list-style: none; }
+    .kpi { margin: 0; padding: 1rem 1.1rem; border: 1px solid var(--tv-line); border-radius: var(--tv-radius); background: var(--tv-bg); }
+    .kpi strong { display: block; font-size: 2rem; line-height: 1.15; font-variant-numeric: tabular-nums; }
+    .kpi .label { display: block; margin-top: 0.2rem; font-weight: 600; }
+    .kpi .note { display: block; color: var(--tv-muted); font-size: 0.875rem; }
+    .kpi.good { border-color: #b7dfc5; background: var(--tv-good-soft); }
+    .kpi.good strong { color: var(--tv-good); }
+    .kpi.down strong { color: var(--tv-down); }
+    .numbers .secondary { margin-top: 0.25rem; }
+    .decision { margin-top: 1.5rem; padding-top: 1.25rem; border-top: 1px solid var(--tv-line); }
+    .decision h3 { margin: 0 0 0.5rem; }
+    .status { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem; margin: 0 0 0.75rem; }
+    .pill { display: inline-block; padding: 0.15rem 0.7rem; border-radius: 999px; font-weight: 700; font-size: 0.9rem; border: 1px solid var(--tv-line); background: var(--tv-bg); color: var(--tv-muted); }
+    .pill-approved { background: var(--tv-good-soft); border-color: var(--tv-good); color: var(--tv-good); }
+    .pill-rejected { background: var(--tv-down-soft); border-color: var(--tv-down); color: var(--tv-down); }
+    .reason { color: var(--tv-muted); }
+    .decide { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0.75rem; }
+    .reason-field { display: grid; gap: 0.25rem; flex: 1 1 16rem; max-width: 26rem; font-weight: 600; font-size: 0.9rem; }
+    .decide-buttons { display: flex; gap: 0.75rem; }
+    .decision.flash { animation: flash 700ms ease-out; }
+    @keyframes flash { from { background: var(--tv-accent-soft); } to { background: transparent; } }
+  </style>
+{% endblock %}
+{% block badge %}
   {% if mode == "replay" %}
-    <p class="badge" title="Results recorded from a real search run; the GPU is off during judging.">Recorded run · real vLLM (Qwen3-8B on MI300X)</p>
+    <p class="head-badge"><span class="badge" title="Results recorded from a real search run; the GPU is off during judging.">Recorded run · real vLLM (Qwen3-8B on MI300X)</span></p>
   {% endif %}
-  <p><a href="/live">Watch the live run →</a></p>
-  {% if error %}
-    <p class="error">{{ error }}</p>
-  {% else %}
-    <h1>{{ headline }}</h1>
-    <p class="secondary">{{ objective_ci }}</p>
-    <p>{{ body }}</p>
-    {% if policy_id %}
-      {% include "decision.html" %}
+{% endblock %}
+{% block body %}
+  {% if hero %}
+    <section class="hero" aria-labelledby="hero-title">
+      <p class="eyebrow">Maintenance and dispatch, tested before the plant</p>
+      <h1 id="hero-title">On-time orders: {{ hero.fixed }} <span class="to">→ {{ hero.best }}</span></h1>
+      <p class="hero-context">{{ hero.context }}</p>
+      <div class="actions">
+        <a class="btn btn-primary" href="#try-policy">Try your own policy</a>
+        <a class="btn" href="/live">Watch the GPU run</a>
+      </div>
+    </section>
+  {% endif %}
+
+  <section class="card" id="card" aria-labelledby="card-title">
+    <p class="eyebrow">Operator card · recommendation</p>
+    <p class="card-provenance">Real vLLM (Qwen3-8B), calibrated plant</p>
+    {% if error %}
+      <h2 id="card-title">Operator card</h2>
+      <p class="error">{{ error }}</p>
+    {% else %}
+      <h2 class="recommendation" id="card-title">{{ headline }}</h2>
+      <div class="why">
+        <h3>Why</h3>
+        <p>{{ body }}</p>
+      </div>
+      <div class="numbers">
+        <h3>Numbers, verified by the simulator</h3>
+        <ul class="kpis">
+          {% for kpi in kpis %}
+            <li class="kpi {{ kpi.tone }}">
+              <strong>{{ kpi.value }}</strong>
+              <span class="label">{{ kpi.label }}</span>
+              <span class="note">{{ kpi.note }}</span>
+            </li>
+          {% endfor %}
+        </ul>
+        <p class="secondary">{{ objective_ci }}</p>
+      </div>
+      {% if policy_id %}
+        {% include "decision.html" %}
+      {% endif %}
     {% endif %}
-  {% endif %}
+    <p><a href="/live">Watch the live run →</a></p>
+  </section>
+
   {% if try_presets %}
     {% include "try_policy.html" %}
   {% endif %}
   {% include "efficiency.html" %}
+  <script>
+    (() => {
+      let timer = 0;
+      function show(message, bad) {
+        const toast = document.getElementById("toast");
+        toast.textContent = message;
+        toast.classList.toggle("bad", bad);
+        toast.classList.add("show");
+        clearTimeout(timer);
+        timer = setTimeout(() => toast.classList.remove("show"), 3500);
+      }
+      document.body.addEventListener("htmx:afterSwap", (event) => {
+        if (event.detail.target.id !== "decision") return;
+        const decision = document.getElementById("decision");
+        decision.classList.add("flash");
+        show(`Decision recorded: ${decision.dataset.status}`, false);
+      });
+      document.body.addEventListener("htmx:responseError", (event) => {
+        if (!event.detail.elt.closest("#decision")) return;
+        const status = event.detail.xhr.status;
+        show(status === 401 ? "Not recorded: operator sign-in is required." : `Not recorded (HTTP ${status}).`, true);
+      });
+    })();
+  </script>
 {% endblock %}

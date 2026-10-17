@@ -1,5 +1,7 @@
 {% macro num(value, fmt) %}{% if value is none %}—{% else %}{{ fmt | format(value) }}{% endif %}{% endmacro %}
+{% macro count(key, value, decimals=0, grouped=false, suffix="") %}{% if value is not none %} data-key="{{ key }}" data-count="{{ value }}" data-decimals="{{ decimals }}"{% if grouped %} data-grouped="1"{% endif %}{% if suffix %} data-suffix="{{ suffix }}"{% endif %}{% endif %}{% endmacro %}
 <div
+  class="live-frame"
   id="live-frame"
   {% if polling %}
     hx-get="/live/frame?pos={{ next_pos }}&amp;speed={{ speed }}"
@@ -42,20 +44,20 @@
     {% endif %}
     {% set proposals = search.proposals or {} %}
     <div class="counters">
-      <div><strong>{{ "—" if search.simulations is none else "{:,}".format(search.simulations) }}</strong><span>simulations</span></div>
+      <div><strong{{ count("sims", search.simulations, grouped=true) }}>{{ "—" if search.simulations is none else "{:,}".format(search.simulations) }}</strong><span>simulations</span></div>
       <div><strong>{{ search.round if search.round is not none else "—" }} / {{ search.rounds_total if search.rounds_total is not none else "—" }}</strong><span>round · {{ search.phase or "—" }}</span></div>
       <div>
         <strong>{{ proposals.valid if proposals else "—" }} / {{ proposals.invalid if proposals else "—" }} / {{ proposals.duplicates if proposals else "—" }}</strong>
         <span>LLM proposals valid / invalid / dup</span>
       </div>
-      <div><strong>{{ num(vllm.tokens_per_s, "%.0f") }}</strong><span>tokens/s</span></div>
-      <div><strong>{{ num(search.best_objective, "%.4f") }}</strong><span>best objective</span></div>
+      <div><strong{{ count("tps", vllm.tokens_per_s) }}>{{ num(vllm.tokens_per_s, "%.0f") }}</strong><span>tokens/s</span></div>
+      <div><strong{{ count("best", search.best_objective, decimals=4) }}>{{ num(search.best_objective, "%.4f") }}</strong><span>best objective</span></div>
     </div>
     <div class="gpu-now">
-      <span>Use <strong>{{ num(gpu.use_pct, "%.0f") }}%</strong></span>
-      <span>VRAM <strong>{{ num(gpu.vram_pct, "%.0f") }}%</strong></span>
-      <span>Power <strong>{{ num(gpu.power_w, "%.0f") }} W</strong></span>
-      <span>Requests in flight <strong>{{ num(vllm.requests_running, "%.0f") }}</strong></span>
+      <span>Use <strong{{ count("use", gpu.use_pct, suffix="%") }}>{{ num(gpu.use_pct, "%.0f") }}%</strong></span>
+      <span>VRAM <strong{{ count("vram", gpu.vram_pct, suffix="%") }}>{{ num(gpu.vram_pct, "%.0f") }}%</strong></span>
+      <span>Power <strong{{ count("power", gpu.power_w, suffix=" W") }}>{{ num(gpu.power_w, "%.0f") }} W</strong></span>
+      <span>Requests in flight <strong{{ count("req", vllm.requests_running) }}>{{ num(vllm.requests_running, "%.0f") }}</strong></span>
     </div>
     <script type="application/json" id="live-series">{{ frame.series | tojson }}</script>
   {% endif %}

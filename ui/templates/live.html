@@ -1,37 +1,66 @@
 {% extends "base.html" %}
+{% set active = "live" %}
+{% block title %}Live run · TwinVerdict{% endblock %}
+{% block head %}
+  <style>
+    .live-frame .speeds { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
+    .counters { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 9.5rem), 1fr)); gap: calc(var(--tv-space) * 1.5); margin: 1.25rem 0; }
+    .counters > div { padding: 1rem 1.1rem; border: 1px solid var(--tv-line); border-radius: var(--tv-radius); background: var(--tv-surface); }
+    .counters strong { display: block; font-size: 2rem; line-height: 1.15; font-variant-numeric: tabular-nums; }
+    .counters span { display: block; margin-top: 0.2rem; color: var(--tv-muted); font-size: 0.9rem; }
+    .gpu-panel { border-color: var(--tv-accent); box-shadow: inset 4px 0 0 var(--tv-accent); }
+    .gpu-panel h2 { color: var(--tv-accent); }
+    .bursts { margin: 0 0 1rem; padding: 0.75rem 1rem; border-radius: 8px; background: var(--tv-accent-soft); color: var(--tv-ink); }
+    .gpu-now { display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); gap: 0.75rem; margin: 0 0 1.25rem; }
+    .gpu-now span { color: var(--tv-muted); font-size: 0.9rem; }
+    .gpu-now strong { display: block; color: var(--tv-ink); font-size: 1.5rem; font-variant-numeric: tabular-nums; }
+    .minis { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr)); gap: 1rem; }
+    .minis figure { margin: 0; min-width: 0; }
+    @media (max-width: 640px) { .counters strong { font-size: 1.6rem; } }
+    .minis figcaption { font-size: 0.9rem; color: var(--tv-muted); font-weight: 600; }
+    .minis canvas { max-height: 160px; }
+  </style>
+{% endblock %}
+{% block badge %}
+  {% if recording is not none and recording.fake %}
+    <p class="head-badge"><span class="badge fake" title="Synthetic numbers generated with --fake to test this page.">Test recording · fake data, not a GPU session</span></p>
+  {% elif recording is not none and mode == "replay" %}
+    <p class="head-badge"><span class="badge" title="Telemetry recorded during the search; the GPU is off during judging.">Recorded run · real vLLM on MI300X</span></p>
+  {% elif recording is not none %}
+    <p class="head-badge"><span class="badge">Live · vLLM on MI300X</span></p>
+  {% endif %}
+{% endblock %}
 {% block body %}
   <p><a href="/">← Operator card</a></p>
+  <p class="eyebrow">The search at work</p>
   <h1>Live run</h1>
-  {% if recording is not none and recording.fake %}
-    <p class="badge fake" title="Synthetic numbers generated with --fake to test this page.">Test recording · fake data, not a GPU session</p>
-  {% elif recording is not none and mode == "replay" %}
-    <p class="badge" title="Telemetry recorded during the search; the GPU is off during judging.">Recorded run · real vLLM on MI300X</p>
-  {% elif recording is not none %}
-    <p class="badge">Live · vLLM on MI300X</p>
-  {% endif %}
   <p class="secondary">
     The search at work: the LLM proposes policies, the simulator scores them.
     Model: {{ model or "—" }}.
   </p>
   {% include "live_frame.html" %}
-  <section class="gpu-panel">
-    <h2>AMD Instinct MI300X · ROCm</h2>
+  <section class="panel gpu-panel" aria-labelledby="gpu-title">
+    <h2 id="gpu-title">AMD Instinct MI300X · ROCm</h2>
     {% if recording is not none and recording.gpu_name %}
       <p class="secondary">{{ recording.gpu_name }}</p>
     {% endif %}
+    <p class="bursts">
+      The GPU works in bursts: it peaks while the LLM proposes a round of policies, then drops
+      while the CPU runs the simulations that score them.
+    </p>
     <div class="minis">
-      <figure><figcaption>GPU use %</figcaption><canvas id="chart-use"></canvas></figure>
-      <figure><figcaption>VRAM %</figcaption><canvas id="chart-vram"></canvas></figure>
-      <figure><figcaption>Power W</figcaption><canvas id="chart-power"></canvas></figure>
+      <figure><figcaption>GPU use %</figcaption><canvas id="chart-use" role="img" aria-label="GPU use over the run"></canvas></figure>
+      <figure><figcaption>VRAM %</figcaption><canvas id="chart-vram" role="img" aria-label="VRAM use over the run"></canvas></figure>
+      <figure><figcaption>Power W</figcaption><canvas id="chart-power" role="img" aria-label="GPU power over the run"></canvas></figure>
     </div>
   </section>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.6/dist/chart.umd.min.js"></script>
   <script>
     (() => {
       const specs = [
-        ["chart-use", "use_pct", "#b45309", 100],
-        ["chart-vram", "vram_pct", "#1d4e89", 100],
-        ["chart-power", "power_w", "#0b6e4f", undefined],
+        ["chart-use", "use_pct", "#1d4ed8", 100],
+        ["chart-vram", "vram_pct", "#4b5563", 100],
+        ["chart-power", "power_w", "#15803d", undefined],
       ];
       const charts = specs.map(([id, key, color, max]) => ({
         key,
@@ -57,8 +86,47 @@
           chart.update();
         }
       }
-      document.body.addEventListener("htmx:afterSwap", refresh);
+
+      const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      let previous = {};
+      function snapshot() {
+        const values = {};
+        for (const node of document.querySelectorAll("[data-count]")) {
+          values[node.dataset.key] = Number(node.dataset.count);
+        }
+        return values;
+      }
+      function format(value, decimals, grouped) {
+        return grouped
+          ? Math.round(value).toLocaleString("en-US")
+          : value.toFixed(Number(decimals));
+      }
+      function countUp() {
+        if (reduced) return;
+        for (const node of document.querySelectorAll("[data-count]")) {
+          const to = Number(node.dataset.count);
+          const from = previous[node.dataset.key] ?? 0;
+          if (!Number.isFinite(to) || from === to) continue;
+          const { decimals = "0", grouped, suffix = "" } = node.dataset;
+          const started = performance.now();
+          const step = (now) => {
+            const t = Math.min(1, Math.max(0, (now - started) / 600));
+            const eased = 1 - (1 - t) ** 3;
+            node.textContent = format(from + (to - from) * eased, decimals, grouped) + suffix;
+            if (t < 1) requestAnimationFrame(step);
+          };
+          requestAnimationFrame(step);
+        }
+      }
+      document.body.addEventListener("htmx:beforeSwap", () => {
+        previous = snapshot();
+      });
+      document.body.addEventListener("htmx:afterSwap", () => {
+        refresh();
+        countUp();
+      });
       refresh();
+      countUp();
     })();
   </script>
 {% endblock %}

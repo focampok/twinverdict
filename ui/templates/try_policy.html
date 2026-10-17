@@ -1,6 +1,43 @@
+{% macro tip(id, text) %}<span class="tip"><button type="button" class="tip-btn" aria-label="What this means" aria-describedby="{{ id }}">?</button><span class="tip-text" role="tooltip" id="{{ id }}">{{ text }}</span></span>{% endmacro %}
 <script src="https://unpkg.com/htmx.org@2.0.4/dist/ext/response-targets.js"></script>
-<section id="try-policy" hx-ext="response-targets">
-  <h2>Try a policy</h2>
+<style>
+  .try-form { display: grid; gap: calc(var(--tv-space) * 2); margin-top: 1rem; }
+  .groups { display: grid; grid-template-columns: repeat(auto-fit, minmax(19rem, 1fr)); gap: calc(var(--tv-space) * 2); }
+  .try-form fieldset { margin: 0; padding: 1rem 1.1rem 0.75rem; border: 1px solid var(--tv-line); border-radius: var(--tv-radius); background: var(--tv-bg); min-width: 0; }
+  .try-form legend { padding: 0 0.35rem; font-weight: 700; }
+  .field { display: grid; gap: 0.3rem; margin-bottom: 0.85rem; }
+  .field-label { display: flex; align-items: center; gap: 0.35rem; font-weight: 600; }
+  .slider { display: grid; grid-template-columns: minmax(8rem, 1fr) minmax(8rem, 12rem) 3rem; align-items: center; gap: 0.6rem; margin-bottom: 0.4rem; }
+  .slider input { width: 100%; margin: 0; min-height: 44px; }
+  .slider output { font-variant-numeric: tabular-nums; font-weight: 700; text-align: right; }
+  .tip { position: relative; display: inline-flex; }
+  .tip-btn { min-height: 24px; width: 24px; padding: 0; border-radius: 999px; font-size: 0.8rem; color: var(--tv-muted); }
+  .tip-btn::before { content: ""; position: absolute; inset: -10px; }
+  .tip-text {
+    position: absolute; left: 50%; bottom: calc(100% + 8px); z-index: 30;
+    width: max-content; max-width: 16rem; padding: 0.5rem 0.65rem;
+    transform: translateX(-50%); border-radius: 8px;
+    background: var(--tv-ink); color: #fff; font-size: 0.85rem; font-weight: 500; line-height: 1.4;
+    display: none;
+  }
+  .tip:hover .tip-text, .tip:focus-within .tip-text { display: block; }
+  .try-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem; }
+  .spinner { width: 1rem; height: 1rem; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin 700ms linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  #try-running { display: none; align-items: center; gap: 0.5rem; color: var(--tv-accent); font-weight: 600; }
+  #try-running.htmx-request { display: inline-flex; }
+  .try-summary { margin: 1rem 0 0; padding: 0.85rem 1rem; border-radius: var(--tv-radius); font-size: 1.1rem; font-weight: 600; background: var(--tv-accent-soft); }
+  .try-summary.good { background: var(--tv-good-soft); color: #14532d; }
+  .try-summary.down { background: var(--tv-down-soft); color: #7f1d1d; }
+  @media (max-width: 640px) {
+    .slider { grid-template-columns: 1fr 3rem; }
+    .slider .field-label { grid-column: 1 / -1; }
+    .tip-text { position: fixed; left: 1rem; right: 1rem; bottom: 1rem; width: auto; max-width: none; transform: none; }
+  }
+</style>
+<section id="try-policy" class="panel" hx-ext="response-targets" aria-labelledby="try-title">
+  <p class="eyebrow">Your turn</p>
+  <h2 id="try-title">Try a policy</h2>
   <p class="secondary">
     Build a maintenance and dispatch policy and the simulator scores it against the fixed rule and
     the LLM's best policy, on the same seeds. No LLM is called.
@@ -14,47 +51,71 @@
     hx-indicator="#try-running"
     hx-disabled-elt="find button[type=submit]"
   >
-    <fieldset>
-      <legend>Dispatch</legend>
-      <label>Rule
-        <select name="rule" id="try-rule">
-          <option value="EDD">EDD (earliest due date)</option>
-          <option value="SPT">SPT (shortest processing time)</option>
-          <option value="CRITICAL_RATIO">CRITICAL_RATIO</option>
-          <option value="WEIGHTED">WEIGHTED</option>
-        </select>
-      </label>
-      <div id="try-weights">
-        <p class="secondary">Weights are normalized to sum 1. CRITICAL_RATIO uses them too.</p>
-        {% for key, label in [("due_date", "Due date"), ("wear_risk", "Wear risk"), ("setup", "Setup")] %}
-          <label class="slider">{{ label }}
-            <input type="range" name="w_{{ key }}" min="0" max="1" step="0.05" value="0.35" />
-            <output></output>
-          </label>
+    <div class="groups">
+      <fieldset>
+        <legend>Dispatch rule</legend>
+        <div class="field">
+          <span class="field-label">
+            <label for="try-rule">Which order runs next</label>
+            {{ tip("tip-rule", "How a free machine picks the next order: by due date, by shortest job, by how late it is, or by a weighted score.") }}
+          </span>
+          <select name="rule" id="try-rule" aria-describedby="tip-rule">
+            <option value="EDD">EDD (earliest due date)</option>
+            <option value="SPT">SPT (shortest processing time)</option>
+            <option value="CRITICAL_RATIO">CRITICAL_RATIO</option>
+            <option value="WEIGHTED">WEIGHTED</option>
+          </select>
+        </div>
+        <div id="try-weights">
+          <p class="secondary">Weights are normalized to sum 1. CRITICAL_RATIO uses them too.</p>
+          {% for key, label, help in [
+            ("due_date", "Due date", "Push orders that are close to their due date to the front."),
+            ("wear_risk", "Wear risk", "Avoid loading machines that are close to failing."),
+            ("setup", "Setup", "Prefer orders that need no tool change on this machine."),
+          ] %}
+            <div class="slider">
+              <span class="field-label">
+                <label for="w_{{ key }}">{{ label }}</label>
+                {{ tip("tip-w-" ~ key, help) }}
+              </span>
+              <input type="range" id="w_{{ key }}" name="w_{{ key }}" min="0" max="1" step="0.05" value="0.35" aria-describedby="tip-w-{{ key }}" />
+              <output for="w_{{ key }}"></output>
+            </div>
+          {% endfor %}
+        </div>
+      </fieldset>
+      <fieldset>
+        <legend>Maintenance thresholds</legend>
+        {% for machine in ["M1", "M2", "M3", "M4", "M5"] %}
+          <div class="slider">
+            <span class="field-label">
+              <label for="pm_{{ machine }}">{{ machine }} PM wear threshold</label>
+              {{ tip("tip-pm-" ~ machine, "Wear level that triggers planned maintenance on " ~ machine ~ ". Lower means earlier, more frequent stops.") }}
+            </span>
+            <input type="range" id="pm_{{ machine }}" name="pm_{{ machine }}" min="0.30" max="0.95" step="0.05" value="0.75" aria-describedby="tip-pm-{{ machine }}" />
+            <output for="pm_{{ machine }}"></output>
+          </div>
         {% endfor %}
-      </div>
-    </fieldset>
-    <fieldset>
-      <legend>Maintenance</legend>
-      {% for machine in ["M1", "M2", "M3", "M4", "M5"] %}
-        <label class="slider">{{ machine }} PM wear threshold
-          <input type="range" name="pm_{{ machine }}" min="0.30" max="0.95" step="0.05" value="0.75" />
-          <output></output>
-        </label>
-      {% endfor %}
-      <label class="slider">Max PM per shift
-        <input type="range" name="max_pm_per_shift" min="1" max="3" step="1" value="1" />
-        <output></output>
-      </label>
-    </fieldset>
+        <div class="slider">
+          <span class="field-label">
+            <label for="max_pm_per_shift">Max PM per shift</label>
+            {{ tip("tip-max-pm", "How many machines the maintenance crew can service in one shift.") }}
+          </span>
+          <input type="range" id="max_pm_per_shift" name="max_pm_per_shift" min="1" max="3" step="1" value="1" aria-describedby="tip-max-pm" />
+          <output for="max_pm_per_shift"></output>
+        </div>
+      </fieldset>
+    </div>
     <input type="hidden" name="rules" id="try-rules" value="[]" />
     <p id="try-rules-note" class="secondary" hidden></p>
-    <button type="button" data-preset="fixed">Load fixed rule</button>
-    <button type="button" data-preset="llm">Load LLM best policy</button>
-    <button type="submit">Simulate</button>
-    <span id="try-running" class="htmx-indicator secondary">Simulating…</span>
+    <div class="try-actions">
+      <button type="button" data-preset="fixed">Load fixed rule</button>
+      <button type="button" data-preset="llm">Load LLM best policy</button>
+      <button type="submit" class="btn-primary">Simulate</button>
+      <span id="try-running" class="htmx-indicator" role="status"><span class="spinner" aria-hidden="true"></span>Simulating…</span>
+    </div>
   </form>
-  <div id="try-result"></div>
+  <div id="try-result" aria-live="polite"></div>
   <script type="application/json" id="try-presets">{{ try_presets | tojson }}</script>
 </section>
 <link rel="stylesheet" href="/visual/gantt.css" />
