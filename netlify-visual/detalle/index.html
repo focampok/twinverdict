@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>TwinVerdict</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="stylesheet" href="gantt.css" />
+    <link rel="stylesheet" href="deck.css" />
+    <style>
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font-family: system-ui, sans-serif;
+        font-size: 1rem;
+        line-height: 1.5;
+      }
+      h1 { font-size: 2.75rem; line-height: 1.35; max-width: 18em; }
+      h2 { font-size: 2rem; line-height: 1.35; max-width: 22em; }
+      h3 { font-size: 1.5rem; line-height: 1.4; font-weight: 650; margin: 0.9rem 0 0.35rem; }
+      .brand { font-size: 1.5rem; line-height: 1.4; }
+      .tagline { font-size: 1.5rem; line-height: 1.4; }
+      .kicker, .step-no, .mark, th, caption, .counter { font-size: 1rem; line-height: 1.4; }
+      .lede, .jump-label, .metric span, .honesty, .why, footer, .soon { font-size: 1.125rem; line-height: 1.5; }
+      .stat strong { font-size: 4rem; line-height: 1.3; }
+      .jump { font-size: 4rem; line-height: 1.3; }
+      .jump .to { font-size: 1.5rem; line-height: 1.4; }
+      .metric strong { font-size: 2rem; line-height: 1.3; }
+      .cta { font-size: 1.5rem; line-height: 1.4; }
+      a { color: var(--text); }
+      button, select {
+        font: inherit;
+        font-size: 1rem;
+        line-height: 1.4;
+        color: var(--text);
+        background: var(--panel);
+        border: 1px solid var(--muted);
+        border-radius: 4px;
+        padding: 0.4rem 0.75rem;
+      }
+      button { cursor: pointer; }
+      button:disabled { opacity: 0.55; cursor: not-allowed; }
+      .soon { color: var(--muted); }
+      .controls { display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: center; margin: 0.8rem 0; }
+      .chart h3, .counters {
+        position: sticky;
+        left: 0;
+        width: 100cqi;
+        max-width: 1000px;
+        background: var(--bg);
+      }
+      .counters {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1.5rem;
+        margin: 0.35rem 0 0.2rem;
+      }
+      .counters strong { display: block; font-size: 1.5rem; line-height: 1.3; font-variant-numeric: tabular-nums; }
+      .counters span { color: var(--muted); font-size: 1rem; line-height: 1.4; }
+      .red strong { color: var(--down); }
+      .summary { font-variant-numeric: tabular-nums; }
+      @media (max-width: 640px) {
+        h1 { font-size: 2.15rem; }
+        h2 { font-size: 1.7rem; }
+        h3 { font-size: 1.3rem; }
+        .stat strong, .jump { font-size: 2.75rem; }
+        .metric strong { font-size: 1.7rem; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        * { scroll-behavior: auto !important; }
+      }
+    </style>
+    <link rel="stylesheet" href="print.css" media="print" />
+  </head>
+  <body>
+    <a class="skip" href="#hook">Skip to slides</a>
+    <div class="deck" id="deck">
+      <section class="slide" id="hook" tabindex="-1" aria-labelledby="hook-title">
+        <div class="slide-inner">
+          <p class="brand">
+            <svg width="28" height="28" viewBox="0 0 28 28" aria-hidden="true">
+              <rect x="3" y="4" width="8" height="20" rx="1.5" fill="var(--processing)" />
+              <rect x="15" y="4" width="8" height="20" rx="1.5" fill="var(--pm)" />
+            </svg>
+            TwinVerdict
+          </p>
+          <h1 id="hook-title">
+            Every unplanned stop costs a plant hours. What if an AI could test
+            <span id="hook-sims">—</span> maintenance plans before you approve one?
+          </h1>
+          <p class="tagline">AI proposes. The simulator verifies. The operator decides.</p>
+        </div>
+      </section>
+
+      <section class="slide" id="problem" tabindex="-1" aria-labelledby="problem-title">
+        <div class="slide-inner">
+          <p class="kicker">The problem</p>
+          <h2 id="problem-title">Fixed rules are expensive to change</h2>
+          <p>
+            Plant managers choose fixed rules for maintenance and dispatch. Changing them on the
+            real line is expensive, and a wrong change stops the plant.
+          </p>
+          <p class="stat">
+            <strong id="fixed-ontime">—</strong>
+            <span>of orders arrive on time with the fixed rule.</span>
+          </p>
+        </div>
+      </section>
+
+      <section class="slide" id="solution" tabindex="-1" aria-labelledby="solution-title">
+        <div class="slide-inner">
+          <p class="kicker">The solution</p>
+          <h2 id="solution-title">Propose, verify, then a person decides</h2>
+          <ol class="steps">
+            <li>
+              <span class="step-no">01</span>
+              <strong><span id="model-name">The model</span> proposes</strong>
+              <p>It writes maintenance and dispatch policies as validated JSON.</p>
+            </li>
+            <li>
+              <span class="step-no">02</span>
+              <strong>The twin scores them</strong>
+              <p>A SimPy digital twin runs each policy across thousands of scenarios.</p>
+            </li>
+            <li>
+              <span class="step-no">03</span>
+              <strong>The operator decides</strong>
+              <p>One card comes back, with Approve and Reject.</p>
+            </li>
+          </ol>
+          <img
+            class="card-shot"
+            src="img/operator-card.png"
+            width="1100"
+            height="470"
+            alt="Operator card from the replay: on time in holdout, 50.6% with the fixed rule and 98.9% with the best policy, a winning dispatch policy, and Approve or Reject"
+          />
+        </div>
+      </section>
+
+      <section class="slide" id="results" tabindex="-1" aria-labelledby="results-title">
+        <div class="slide-inner">
+          <p class="kicker">Results</p>
+          <h2 id="results-title">On time, on seeds the search did not train on</h2>
+          <p class="jump" id="ontime-jump">
+            <span id="ontime-from">—</span>
+            <span class="to">to</span>
+            <span id="ontime-to">—</span>
+          </p>
+          <p class="jump-label" id="holdout-label">On-time orders. Holdout size loads with the recorded run.</p>
+          <p id="results-status" class="soon" role="status">Loading recorded results…</p>
+          <div class="table-scroll" tabindex="0" role="region" aria-label="Four methods, holdout objective and confidence interval">
+            <table id="methods">
+              <caption>Holdout objective and 95% confidence interval for each method.</caption>
+              <thead>
+                <tr>
+                  <th scope="col">Method</th>
+                  <th scope="col" class="num">Objective</th>
+                  <th scope="col" class="num">95% CI</th>
+                  <th scope="col" class="num">Simulations</th>
+                </tr>
+              </thead>
+              <tbody id="methods-body"></tbody>
+            </table>
+          </div>
+          <p id="honesty" class="honesty"></p>
+        </div>
+      </section>
+
+      <section class="slide gantt" id="evidence" tabindex="-1" aria-labelledby="evidence-title">
+        <div class="slide-inner">
+          <p class="kicker">See it run</p>
+          <h2 id="evidence-title">Same seed, two policies</h2>
+          <p class="lede">
+            Seed 1000111. One playhead moves both lanes. The minutes below come from this recording.
+          </p>
+          <div class="controls">
+            <label>Seed <select id="seed"></select></label>
+            <button id="play" type="button">Play</button>
+            <button id="jump" type="button">Jump to divergence</button>
+            <span id="playhead-label" class="soon"></span>
+          </div>
+          <p id="seed-summary" class="summary"></p>
+          <p id="chart-error" class="soon" role="alert"></p>
+          <div class="chart-scroll">
+            <div class="chart">
+              <svg id="axis" width="1000" height="40" viewBox="0 0 1000 40" role="img" aria-label="Shared plant-hour axis"></svg>
+              <h3>Baseline: fixed rule (threshold 0.75, 1 PM/shift, EDD)</h3>
+              <svg id="lane-baseline" width="1000" height="160" viewBox="0 0 1000 160" role="img" aria-label="Baseline lane"></svg>
+              <div id="count-baseline" class="counters"></div>
+              <h3>Proposed policy</h3>
+              <svg id="lane-proposed" width="1000" height="160" viewBox="0 0 1000 160" role="img" aria-label="Proposed lane"></svg>
+              <div id="count-proposed" class="counters"></div>
+            </div>
+          </div>
+          <div class="legend">
+            <span><i class="swatch" style="background: var(--processing)"></i>Processing</span>
+            <span><i class="swatch" style="background: var(--setup)"></i>Setup</span>
+            <span><i class="swatch" style="background: var(--pm)"></i>Planned maintenance</span>
+            <span><i class="swatch" style="background: var(--down)"></i>Unplanned stop</span>
+            <span><i class="swatch" style="background: var(--idle)"></i>Idle</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="slide" id="amd" tabindex="-1" aria-labelledby="amd-title">
+        <div class="slide-inner">
+          <p class="kicker">Powered by AMD</p>
+          <h2 id="amd-title">Real inference on AMD Instinct MI300X via ROCm + vLLM</h2>
+          <p class="lede" id="amd-recorded"></p>
+          <p id="amd-status" class="soon" role="status">Loading recorded GPU telemetry…</p>
+          <div class="metrics" id="amd-metrics"></div>
+          <p class="why">
+            The MI300X has 192 GB of HBM3, enough to keep the model resident while many requests
+            run in parallel. ROCm is open source. AMD Developer Cloud ran this job without hardware
+            of our own.
+          </p>
+        </div>
+      </section>
+
+      <section class="slide" id="users" tabindex="-1" aria-labelledby="users-title">
+        <div class="slide-inner">
+          <p class="kicker">Who uses it</p>
+          <h2 id="users-title">The person who owns the downtime</h2>
+          <p>
+            Built for the plant manager and the maintenance engineer in discrete manufacturing.
+          </p>
+          <p>The value is measurable: orders that arrive on time, and minutes of unplanned stop.</p>
+          <p>
+            Every number on the operator card is checked against the simulator before it is shown
+            (<code>guard/numbers.py</code>).
+          </p>
+        </div>
+      </section>
+
+      <section class="slide" id="try" tabindex="-1" aria-labelledby="try-title">
+        <div class="slide-inner">
+          <p class="kicker">Try it yourself</p>
+          <h2 id="try-title">The recording is already running</h2>
+          <p class="lede">Same operator card, the live telemetry, and a policy you can score yourself.</p>
+          <p>
+            <a class="cta" id="live-cta" data-href="app" href="https://twinverdict.focampo.com">See it live</a>
+          </p>
+          <div class="links">
+            <a data-href="live" href="https://twinverdict.focampo.com/live">Live telemetry</a>
+            <a data-href="try" href="https://twinverdict.focampo.com/#try-policy">Try a policy</a>
+            <a href="https://github.com/focampok/twinverdict">github.com/focampok/twinverdict</a>
+          </div>
+        </div>
+      </section>
+
+      <section class="slide" id="roadmap" tabindex="-1" aria-labelledby="roadmap-title">
+        <div class="slide-inner">
+          <p class="kicker">Roadmap</p>
+          <h2 id="roadmap-title">From this plant to a real one</h2>
+          <ol class="roadmap">
+            <li><span>01</span><p>Customer data from the CMMS and the MES.</p></li>
+            <li><span>02</span><p>Scenarios built for a specific plant.</p></li>
+            <li><span>03</span><p>The language model live, on demand, on MI300X.</p></li>
+          </ol>
+          <footer>
+            <p><a href="/">← Case</a></p>
+          </footer>
+        </div>
+      </section>
+    </div>
+
+    <nav class="dots" aria-label="Slides">
+      <button type="button" data-slide="hook" aria-label="Hook"><i></i></button>
+      <button type="button" data-slide="problem" aria-label="Problem"><i></i></button>
+      <button type="button" data-slide="solution" aria-label="Solution"><i></i></button>
+      <button type="button" data-slide="results" aria-label="Results"><i></i></button>
+      <button type="button" data-slide="evidence" aria-label="See it run"><i></i></button>
+      <button type="button" data-slide="amd" aria-label="Powered by AMD"><i></i></button>
+      <button type="button" data-slide="users" aria-label="Who uses it"><i></i></button>
+      <button type="button" data-slide="try" aria-label="Try it yourself"><i></i></button>
+      <button type="button" data-slide="roadmap" aria-label="Roadmap"><i></i></button>
+    </nav>
+    <div class="chrome">
+      <div class="arrows">
+        <button type="button" id="prev" aria-label="Previous slide">
+          <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M6 14l6-6 6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+        </button>
+        <button type="button" id="next" aria-label="Next slide">
+          <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M6 10l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+        </button>
+      </div>
+      <p class="counter" aria-hidden="true"><span id="slide-index">1</span> / 9</p>
+    </div>
+
+    <script src="gantt-core.js"></script>
+    <script src="gantt.js"></script>
+    <script src="deck.js"></script>
+  </body>
+</html>

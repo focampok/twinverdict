@@ -1,301 +1,186 @@
-<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>TwinVerdict</title>
-    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
-    <link rel="stylesheet" href="gantt.css" />
-    <link rel="stylesheet" href="deck.css" />
-    <style>
-      * { box-sizing: border-box; }
-      body {
-        margin: 0;
-        background: var(--bg);
-        color: var(--text);
-        font-family: system-ui, sans-serif;
-        font-size: 1rem;
-        line-height: 1.5;
-      }
-      h1 { font-size: 2.75rem; line-height: 1.35; max-width: 18em; }
-      h2 { font-size: 2rem; line-height: 1.35; max-width: 22em; }
-      h3 { font-size: 1.5rem; line-height: 1.4; font-weight: 650; margin: 0.9rem 0 0.35rem; }
-      .brand { font-size: 1.5rem; line-height: 1.4; }
-      .tagline { font-size: 1.5rem; line-height: 1.4; }
-      .kicker, .step-no, .mark, th, caption, .counter { font-size: 1rem; line-height: 1.4; }
-      .lede, .jump-label, .metric span, .honesty, .why, footer, .soon { font-size: 1.125rem; line-height: 1.5; }
-      .stat strong { font-size: 4rem; line-height: 1.3; }
-      .jump { font-size: 4rem; line-height: 1.3; }
-      .jump .to { font-size: 1.5rem; line-height: 1.4; }
-      .metric strong { font-size: 2rem; line-height: 1.3; }
-      .cta { font-size: 1.5rem; line-height: 1.4; }
-      a { color: var(--text); }
-      button, select {
-        font: inherit;
-        font-size: 1rem;
-        line-height: 1.4;
-        color: var(--text);
-        background: var(--panel);
-        border: 1px solid var(--muted);
-        border-radius: 4px;
-        padding: 0.4rem 0.75rem;
-      }
-      button { cursor: pointer; }
-      button:disabled { opacity: 0.55; cursor: not-allowed; }
-      .soon { color: var(--muted); }
-      .controls { display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: center; margin: 0.8rem 0; }
-      .chart h3, .counters {
-        position: sticky;
-        left: 0;
-        width: 100cqi;
-        max-width: 1000px;
-        background: var(--bg);
-      }
-      .counters {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 1.5rem;
-        margin: 0.35rem 0 0.2rem;
-      }
-      .counters strong { display: block; font-size: 1.5rem; line-height: 1.3; font-variant-numeric: tabular-nums; }
-      .counters span { color: var(--muted); font-size: 1rem; line-height: 1.4; }
-      .red strong { color: var(--down); }
-      .summary { font-variant-numeric: tabular-nums; }
-      @media (max-width: 640px) {
-        h1 { font-size: 2.15rem; }
-        h2 { font-size: 1.7rem; }
-        h3 { font-size: 1.3rem; }
-        .stat strong, .jump { font-size: 2.75rem; }
-        .metric strong { font-size: 1.7rem; }
-      }
-      @media (prefers-reduced-motion: reduce) {
-        * { scroll-behavior: auto !important; }
-      }
-    </style>
-    <link rel="stylesheet" href="print.css" media="print" />
-  </head>
-  <body>
-    <a class="skip" href="#hook">Skip to slides</a>
-    <div class="deck" id="deck">
-      <section class="slide" id="hook" tabindex="-1" aria-labelledby="hook-title">
-        <div class="slide-inner">
-          <p class="brand">
-            <svg width="28" height="28" viewBox="0 0 28 28" aria-hidden="true">
-              <rect x="3" y="4" width="8" height="20" rx="1.5" fill="var(--processing)" />
-              <rect x="15" y="4" width="8" height="20" rx="1.5" fill="var(--pm)" />
-            </svg>
-            TwinVerdict
-          </p>
-          <h1 id="hook-title">
-            Every unplanned stop costs a plant hours. What if an AI could test
-            <span id="hook-sims">—</span> maintenance plans before you approve one?
-          </h1>
-          <p class="tagline">AI proposes. The simulator verifies. The operator decides.</p>
-        </div>
-      </section>
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title data-es="TwinVerdict | Francisco Ocampo" data-en="TwinVerdict | Francisco Ocampo">TwinVerdict | Francisco Ocampo</title>
+  <meta name="description" data-es="La IA propone políticas, un gemelo digital las verifica en miles de escenarios y una persona aprueba o rechaza. Las cifras del texto se comprueban contra el simulador." data-en="AI proposes policies, a digital twin verifies them across thousands of scenarios, and a person approves or rejects. Every figure in the text is checked against the simulator." content="La IA propone políticas, un gemelo digital las verifica en miles de escenarios y una persona aprueba o rechaza. Las cifras del texto se comprueban contra el simulador.">
+  <meta name="theme-color" content="#8B6914" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0B1220" media="(prefers-color-scheme: dark)">
 
-      <section class="slide" id="problem" tabindex="-1" aria-labelledby="problem-title">
-        <div class="slide-inner">
-          <p class="kicker">The problem</p>
-          <h2 id="problem-title">Fixed rules are expensive to change</h2>
-          <p>
-            Plant managers choose fixed rules for maintenance and dispatch. Changing them on the
-            real line is expensive, and a wrong change stops the plant.
-          </p>
-          <p class="stat">
-            <strong id="fixed-ontime">—</strong>
-            <span>of orders arrive on time with the fixed rule.</span>
-          </p>
-        </div>
-      </section>
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="TwinVerdict | Francisco Ocampo">
+  <meta property="og:description" content="La IA propone políticas, un gemelo digital las verifica en miles de escenarios y una persona aprueba o rechaza. Las cifras se comprueban contra el simulador.">
+  <meta property="og:image" content="https://info-twinverdict.focampo.com/og.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:url" content="https://info-twinverdict.focampo.com/">
+  <meta property="og:locale" content="es_GT">
+  <meta property="og:locale:alternate" content="en_US">
+  <link rel="canonical" href="https://info-twinverdict.focampo.com/">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/info.css">
+  <script src="/info.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main" data-es="Saltar al contenido" data-en="Skip to content">Saltar al contenido</a>
 
-      <section class="slide" id="solution" tabindex="-1" aria-labelledby="solution-title">
-        <div class="slide-inner">
-          <p class="kicker">The solution</p>
-          <h2 id="solution-title">Propose, verify, then a person decides</h2>
-          <ol class="steps">
-            <li>
-              <span class="step-no">01</span>
-              <strong><span id="model-name">The model</span> proposes</strong>
-              <p>It writes maintenance and dispatch policies as validated JSON.</p>
-            </li>
-            <li>
-              <span class="step-no">02</span>
-              <strong>The twin scores them</strong>
-              <p>A SimPy digital twin runs each policy across thousands of scenarios.</p>
-            </li>
-            <li>
-              <span class="step-no">03</span>
-              <strong>The operator decides</strong>
-              <p>One card comes back, with Approve and Reject.</p>
-            </li>
-          </ol>
-          <img
-            class="card-shot"
-            src="img/operator-card.png"
-            width="1100"
-            height="470"
-            alt="Operator card from the replay: on time in holdout, 50.6% with the fixed rule and 98.9% with the best policy, a winning dispatch policy, and Approve or Reject"
-          />
-        </div>
-      </section>
-
-      <section class="slide" id="results" tabindex="-1" aria-labelledby="results-title">
-        <div class="slide-inner">
-          <p class="kicker">Results</p>
-          <h2 id="results-title">On time, on seeds the search did not train on</h2>
-          <p class="jump" id="ontime-jump">
-            <span id="ontime-from">—</span>
-            <span class="to">to</span>
-            <span id="ontime-to">—</span>
-          </p>
-          <p class="jump-label" id="holdout-label">On-time orders. Holdout size loads with the recorded run.</p>
-          <p id="results-status" class="soon" role="status">Loading recorded results…</p>
-          <div class="table-scroll" tabindex="0" role="region" aria-label="Four methods, holdout objective and confidence interval">
-            <table id="methods">
-              <caption>Holdout objective and 95% confidence interval for each method.</caption>
-              <thead>
-                <tr>
-                  <th scope="col">Method</th>
-                  <th scope="col" class="num">Objective</th>
-                  <th scope="col" class="num">95% CI</th>
-                  <th scope="col" class="num">Simulations</th>
-                </tr>
-              </thead>
-              <tbody id="methods-body"></tbody>
-            </table>
-          </div>
-          <p id="honesty" class="honesty"></p>
-        </div>
-      </section>
-
-      <section class="slide gantt" id="evidence" tabindex="-1" aria-labelledby="evidence-title">
-        <div class="slide-inner">
-          <p class="kicker">See it run</p>
-          <h2 id="evidence-title">Same seed, two policies</h2>
-          <p class="lede">
-            Seed 1000111. One playhead moves both lanes. The minutes below come from this recording.
-          </p>
-          <div class="controls">
-            <label>Seed <select id="seed"></select></label>
-            <button id="play" type="button">Play</button>
-            <button id="jump" type="button">Jump to divergence</button>
-            <span id="playhead-label" class="soon"></span>
-          </div>
-          <p id="seed-summary" class="summary"></p>
-          <p id="chart-error" class="soon" role="alert"></p>
-          <div class="chart-scroll">
-            <div class="chart">
-              <svg id="axis" width="1000" height="40" viewBox="0 0 1000 40" role="img" aria-label="Shared plant-hour axis"></svg>
-              <h3>Baseline: fixed rule (threshold 0.75, 1 PM/shift, EDD)</h3>
-              <svg id="lane-baseline" width="1000" height="160" viewBox="0 0 1000 160" role="img" aria-label="Baseline lane"></svg>
-              <div id="count-baseline" class="counters"></div>
-              <h3>Proposed policy</h3>
-              <svg id="lane-proposed" width="1000" height="160" viewBox="0 0 1000 160" role="img" aria-label="Proposed lane"></svg>
-              <div id="count-proposed" class="counters"></div>
-            </div>
-          </div>
-          <div class="legend">
-            <span><i class="swatch" style="background: var(--processing)"></i>Processing</span>
-            <span><i class="swatch" style="background: var(--setup)"></i>Setup</span>
-            <span><i class="swatch" style="background: var(--pm)"></i>Planned maintenance</span>
-            <span><i class="swatch" style="background: var(--down)"></i>Unplanned stop</span>
-            <span><i class="swatch" style="background: var(--idle)"></i>Idle</span>
-          </div>
-        </div>
-      </section>
-
-      <section class="slide" id="amd" tabindex="-1" aria-labelledby="amd-title">
-        <div class="slide-inner">
-          <p class="kicker">Powered by AMD</p>
-          <h2 id="amd-title">Real inference on AMD Instinct MI300X via ROCm + vLLM</h2>
-          <p class="lede" id="amd-recorded"></p>
-          <p id="amd-status" class="soon" role="status">Loading recorded GPU telemetry…</p>
-          <div class="metrics" id="amd-metrics"></div>
-          <p class="why">
-            The MI300X has 192 GB of HBM3, enough to keep the model resident while many requests
-            run in parallel. ROCm is open source. AMD Developer Cloud ran this job without hardware
-            of our own.
-          </p>
-        </div>
-      </section>
-
-      <section class="slide" id="users" tabindex="-1" aria-labelledby="users-title">
-        <div class="slide-inner">
-          <p class="kicker">Who uses it</p>
-          <h2 id="users-title">The person who owns the downtime</h2>
-          <p>
-            Built for the plant manager and the maintenance engineer in discrete manufacturing.
-          </p>
-          <p>The value is measurable: orders that arrive on time, and minutes of unplanned stop.</p>
-          <p>
-            Every number on the operator card is checked against the simulator before it is shown
-            (<code>guard/numbers.py</code>).
-          </p>
-        </div>
-      </section>
-
-      <section class="slide" id="try" tabindex="-1" aria-labelledby="try-title">
-        <div class="slide-inner">
-          <p class="kicker">Try it yourself</p>
-          <h2 id="try-title">The recording is already running</h2>
-          <p class="lede">Same operator card, the live telemetry, and a policy you can score yourself.</p>
-          <p>
-            <a class="cta" id="live-cta" data-href="app" href="https://twinverdict.focampo.com">See it live</a>
-          </p>
-          <div class="links">
-            <a data-href="live" href="https://twinverdict.focampo.com/live">Live telemetry</a>
-            <a data-href="try" href="https://twinverdict.focampo.com/#try-policy">Try a policy</a>
-            <a href="https://github.com/focampok/twinverdict">github.com/focampok/twinverdict</a>
-          </div>
-        </div>
-      </section>
-
-      <section class="slide" id="roadmap" tabindex="-1" aria-labelledby="roadmap-title">
-        <div class="slide-inner">
-          <p class="kicker">Roadmap</p>
-          <h2 id="roadmap-title">From this plant to a real one</h2>
-          <ol class="roadmap">
-            <li><span>01</span><p>Customer data from the CMMS and the MES.</p></li>
-            <li><span>02</span><p>Scenarios built for a specific plant.</p></li>
-            <li><span>03</span><p>The language model live, on demand, on MI300X.</p></li>
-          </ol>
-          <footer>
-            <p>Built for the AMD Developer Hackathon ACT III · Intelligent Industry track</p>
-          </footer>
-        </div>
-      </section>
-    </div>
-
-    <nav class="dots" aria-label="Slides">
-      <button type="button" data-slide="hook" aria-label="Hook"><i></i></button>
-      <button type="button" data-slide="problem" aria-label="Problem"><i></i></button>
-      <button type="button" data-slide="solution" aria-label="Solution"><i></i></button>
-      <button type="button" data-slide="results" aria-label="Results"><i></i></button>
-      <button type="button" data-slide="evidence" aria-label="See it run"><i></i></button>
-      <button type="button" data-slide="amd" aria-label="Powered by AMD"><i></i></button>
-      <button type="button" data-slide="users" aria-label="Who uses it"><i></i></button>
-      <button type="button" data-slide="try" aria-label="Try it yourself"><i></i></button>
-      <button type="button" data-slide="roadmap" aria-label="Roadmap"><i></i></button>
-    </nav>
-    <div class="chrome">
-      <div class="arrows">
-        <button type="button" id="prev" aria-label="Previous slide">
-          <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M6 14l6-6 6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-          </svg>
-        </button>
-        <button type="button" id="next" aria-label="Next slide">
-          <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M6 10l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-          </svg>
-        </button>
+  <header class="site-header">
+    <div class="wrap header-row">
+      <a class="back-link" href="https://focampo.com/casos" data-es="← Casos" data-en="← Cases">← Casos</a>
+      <div class="lang-toggle" role="group" aria-label="Idioma / Language">
+        <button type="button" class="lang-btn" data-lang="es" aria-pressed="true">ES</button>
+        <span class="lang-sep" aria-hidden="true">|</span>
+        <button type="button" class="lang-btn" data-lang="en" aria-pressed="false">EN</button>
       </div>
-      <p class="counter" aria-hidden="true"><span id="slide-index">1</span> / 9</p>
     </div>
+    <div class="wrap hero">
+      <p class="eyebrow" data-es="Caso · Gobierno de IA" data-en="Case · AI governance">Caso · Gobierno de IA</p>
+      <div class="title-row">
+        <h1>TwinVerdict</h1>
+      </div>
+      <p class="tagline" data-es="¿Cómo aprobar una decisión de IA con evidencia y no con fe?" data-en="How do you approve an AI decision with evidence rather than faith?">¿Cómo aprobar una decisión de IA con evidencia y no con fe?</p>
+    </div>
+  </header>
 
-    <script src="gantt-core.js"></script>
-    <script src="gantt.js"></script>
-    <script src="deck.js"></script>
-  </body>
+  <main id="main">
+    <section class="section" aria-labelledby="risk-title">
+      <div class="wrap">
+        <div class="section-head">
+          <span class="section-index" aria-hidden="true">01</span>
+          <h2 id="risk-title" data-es="El riesgo de negocio" data-en="The business risk">El riesgo de negocio</h2>
+        </div>
+        <p class="lede" data-es="Cambiar reglas fijas de mantenimiento y despacho en una línea real es caro, y un cambio equivocado detiene la planta. Aprobar lo que propone una IA sin evidencia es un riesgo de gobierno: no queda registro de por qué se aprobó ni prueba de que la política aguanta antes de tocarla." data-en="Changing fixed maintenance and dispatch rules on a real line is expensive, and a wrong change stops the plant. Approving what an AI proposes without evidence is a governance risk: there is no record of why it was approved and no proof the policy holds before it is applied.">Cambiar reglas fijas de mantenimiento y despacho en una línea real es caro, y un cambio equivocado detiene la planta. Aprobar lo que propone una IA sin evidencia es un riesgo de gobierno: no queda registro de por qué se aprobó ni prueba de que la política aguanta antes de tocarla.</p>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="how-title">
+      <div class="wrap">
+        <div class="section-head">
+          <span class="section-index" aria-hidden="true">02</span>
+          <h2 id="how-title" data-es="Cómo funciona" data-en="How it works">Cómo funciona</h2>
+        </div>
+        <ol class="steps">
+          <li class="step">
+            <span class="step-no" aria-hidden="true">1</span>
+            <h3 data-es="La IA propone políticas en JSON validado" data-en="The AI proposes policies as validated JSON">La IA propone políticas en JSON validado</h3>
+            <p data-es="El modelo escribe reglas de mantenimiento y despacho; el esquema rechaza una propuesta mal formada antes de simularla." data-en="The model writes maintenance and dispatch rules; the schema rejects a malformed proposal before it is simulated.">El modelo escribe reglas de mantenimiento y despacho; el esquema rechaza una propuesta mal formada antes de simularla.</p>
+          </li>
+          <li class="step">
+            <span class="step-no" aria-hidden="true">2</span>
+            <h3 data-es="Un gemelo digital (SimPy) las verifica en miles de escenarios" data-en="A digital twin (SimPy) verifies them across thousands of scenarios">Un gemelo digital (SimPy) las verifica en miles de escenarios</h3>
+            <p data-es="El simulador corre cada política en escenarios que la búsqueda no usó, para medir el desempeño fuera de la muestra." data-en="The simulator runs each policy on scenarios the search did not use, to measure out-of-sample performance.">El simulador corre cada política en escenarios que la búsqueda no usó, para medir el desempeño fuera de la muestra.</p>
+          </li>
+          <li class="step">
+            <span class="step-no" aria-hidden="true">3</span>
+            <h3 data-es="Una persona aprueba o rechaza en una sola tarjeta" data-en="A person approves or rejects on a single card">Una persona aprueba o rechaza en una sola tarjeta</h3>
+            <p data-es="Las cifras del texto se comprueban contra el simulador (guard/numbers.py); la decisión queda en una tarjeta legible." data-en="Every figure in the text is checked against the simulator (guard/numbers.py); the decision sits on one readable card.">Las cifras del texto se comprueban contra el simulador (guard/numbers.py); la decisión queda en una tarjeta legible.</p>
+          </li>
+        </ol>
+
+        <figure class="diagram">
+          <svg viewBox="0 0 760 220" role="img" aria-labelledby="diagram-title diagram-desc" font-family="Inter, system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif">
+            <title id="diagram-title" data-es="Flujo de aprobación de TwinVerdict" data-en="TwinVerdict approval flow">Flujo de aprobación de TwinVerdict</title>
+            <desc id="diagram-desc" data-es="La política propuesta pasa por el gemelo digital y llega a una persona que aprueba o rechaza." data-en="The proposed policy goes through the digital twin and reaches a person who approves or rejects.">La política propuesta pasa por el gemelo digital y llega a una persona que aprueba o rechaza.</desc>
+            <g fill="#8B6914" font-size="13" font-weight="700">
+              <text x="16" y="38">01</text>
+              <text x="280" y="38">02</text>
+              <text x="544" y="38">03</text>
+            </g>
+            <g fill="#ffffff" stroke="#8B6914" stroke-width="2">
+              <rect x="16" y="54" width="212" height="112" rx="12"/>
+              <rect x="280" y="54" width="212" height="112" rx="12"/>
+              <rect x="544" y="54" width="200" height="112" rx="12"/>
+            </g>
+            <g fill="#111827" font-size="15" font-weight="600" text-anchor="middle">
+              <text x="122" y="100" data-es="Política propuesta" data-en="Proposed policy">Política propuesta</text>
+              <text x="386" y="100" data-es="Gemelo digital" data-en="Digital twin">Gemelo digital</text>
+              <text x="644" y="100" data-es="Persona" data-en="Person">Persona</text>
+            </g>
+            <g fill="#4B5563" font-size="13" text-anchor="middle">
+              <text x="122" y="128" data-es="JSON validado" data-en="Validated JSON">JSON validado</text>
+              <text x="386" y="128" data-es="Miles de escenarios" data-en="Thousands of scenarios">Miles de escenarios</text>
+              <text x="644" y="128" data-es="Aprueba o rechaza" data-en="Approves or rejects">Aprueba o rechaza</text>
+            </g>
+            <g fill="none" stroke="#8B6914" stroke-width="2">
+              <path d="M228 110h44"/>
+              <path d="M492 110h44"/>
+            </g>
+            <g fill="#8B6914">
+              <path d="M272 110l-10-6v12z"/>
+              <path d="M536 110l-10-6v12z"/>
+            </g>
+          </svg>
+          <figcaption data-es="La persona decide después de ver el desempeño fuera de la muestra." data-en="The person decides after seeing out-of-sample performance.">La persona decide después de ver el desempeño fuera de la muestra.</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="evidence-title">
+      <div class="wrap">
+        <div class="section-head">
+          <span class="section-index" aria-hidden="true">03</span>
+          <h2 id="evidence-title" data-es="Evidencia" data-en="Evidence">Evidencia</h2>
+        </div>
+        <ul class="evidence">
+          <li class="evidence-item">
+            <span class="chip chip-sim" data-es="SIMULADO" data-en="SIMULATED">SIMULADO</span>
+            <p data-es="Planta simulada: entregas a tiempo de 50.6% a 98.9% en 300 escenarios que no se usaron en la búsqueda." data-en="Simulated plant: on-time deliveries from 50.6% to 98.9% across 300 scenarios that were not used in the search.">Planta simulada: entregas a tiempo de 50.6% a 98.9% en 300 escenarios que no se usaron en la búsqueda.</p>
+            <p class="source" data-es="Fuente: bench/results/efficiency_20261017.json (holdout de 300 semillas), corrida del 17 de octubre de 2026." data-en="Source: bench/results/efficiency_20261017.json (300-seed holdout), run of 17 October 2026.">Fuente: bench/results/efficiency_20261017.json (holdout de 300 semillas), corrida del 17 de octubre de 2026.</p>
+          </li>
+          <li class="evidence-item">
+            <span class="chip chip-sim" data-es="SIMULADO" data-en="SIMULATED">SIMULADO</span>
+            <p data-es="Optuna TPE alcanza 99.9% de entregas a tiempo con 69,300 simulaciones; el bucle con retroalimentación, 98.9% con 37,560. La política del bucle es legible; la de Optuna no." data-en="Optuna TPE reaches 99.9% on-time deliveries with 69,300 simulations; the feedback loop reaches 98.9% with 37,560. The loop's policy is readable; Optuna's is not.">Optuna TPE alcanza 99.9% de entregas a tiempo con 69,300 simulaciones; el bucle con retroalimentación, 98.9% con 37,560. La política del bucle es legible; la de Optuna no.</p>
+            <p class="source" data-es="Fuente: bench/results/efficiency_20261017.json y README.md, 17 de octubre de 2026." data-en="Source: bench/results/efficiency_20261017.json and README.md, 17 October 2026.">Fuente: bench/results/efficiency_20261017.json y README.md, 17 de octubre de 2026.</p>
+          </li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="relates-title">
+      <div class="wrap">
+        <div class="section-head">
+          <span class="section-index" aria-hidden="true">04</span>
+          <h2 id="relates-title" data-es="Se relaciona con" data-en="Relates to">Se relaciona con</h2>
+        </div>
+        <ul class="chips">
+          <li data-es="Gobierno de IA" data-en="AI governance">Gobierno de IA</li>
+          <li data-es="Aprobación humana" data-en="Human approval">Aprobación humana</li>
+          <li data-es="Verificación de cifras" data-en="Figure verification">Verificación de cifras</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="cta-title">
+      <div class="wrap">
+        <div class="cta-box">
+          <div class="section-head">
+            <span class="section-index" aria-hidden="true">05</span>
+            <h2 id="cta-title" data-es="Siguiente paso" data-en="Next step">Siguiente paso</h2>
+          </div>
+          <p class="lede" data-es="Vea el gemelo digital en vivo o revise el detalle técnico." data-en="See the digital twin live or review the technical detail.">Vea el gemelo digital en vivo o revise el detalle técnico.</p>
+          <div class="cta-actions">
+            <a class="btn btn-primary" href="https://twinverdict.focampo.com" target="_blank" rel="noopener noreferrer">
+              <span data-es="Ver en vivo" data-en="See it live">Ver en vivo</span><span class="sr-only" data-es=" (se abre en una pestaña nueva)" data-en=" (opens in a new tab)"> (se abre en una pestaña nueva)</span>
+            </a>
+            <a class="btn" href="https://focampo.com/#contact" target="_blank" rel="noopener noreferrer">
+              <span data-es="Contactar" data-en="Contact">Contactar</span><span class="sr-only" data-es=" (se abre en una pestaña nueva)" data-en=" (opens in a new tab)"> (se abre en una pestaña nueva)</span>
+            </a>
+            <a class="btn" href="https://github.com/focampok/twinverdict" target="_blank" rel="noopener noreferrer">
+              <span data-es="Código" data-en="Code">Código</span><span class="sr-only" data-es=" (se abre en una pestaña nueva)" data-en=" (opens in a new tab)"> (se abre en una pestaña nueva)</span>
+            </a>
+            <a class="btn" href="/detalle/" data-es="Detalle técnico" data-en="Technical detail">Detalle técnico</a>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap footer-row">
+      <p>© Francisco Ocampo · <a href="https://focampo.com">focampo.com</a></p>
+      <p class="powered" data-es="powered by AMD Instinct MI300X" data-en="powered by AMD Instinct MI300X">powered by AMD Instinct MI300X</p>
+    </div>
+  </footer>
+</body>
 </html>
