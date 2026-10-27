@@ -1,3 +1,5 @@
+# Excepción documentada: connect-src incluye https://twinverdict.focampo.com
+# para el deck del detalle técnico (telemetría y enlaces reescritos por gantt.js).
 /*
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
